@@ -24,6 +24,9 @@
     align-items: center;
     gap: 10px;
   }
+  #rotateHint {
+    display: none;
+  }
   canvas {
     background: #10141f;
     border: 2px solid #2a3350;
@@ -36,6 +39,7 @@
   #leftpad {
     width: 72px;
     height: min(480px, 80vh);
+    flex: none;
     border: 2px dashed #2a3350;
     border-radius: 8px;
     background: #0d1119;
@@ -86,6 +90,7 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const leftpad = document.getElementById('leftpad');
+  const wrap = document.getElementById('wrap');
   document.getElementById('reload').addEventListener('click', () => location.reload());
 
   const PADDLE_W = 12, PADDLE_H = 90, PADDLE_MARGIN = 24;
@@ -110,6 +115,41 @@
   const keys = {};
   let mouseY = null;
   let goalStart = 0;
+  let rotated = false;
+
+  // Mode paysage force quand l'ecran est en portrait (rotation du contenu)
+  function fitScreen() {
+    const iw = window.innerWidth, ih = window.innerHeight;
+    const portrait = ih > iw;
+    if (portrait) {
+      const stripW = 86;
+      const maxW = Math.max(200, iw - 16);
+      const maxH = Math.max(120, (ih - 20 - stripW) * (480 / 800));
+      const ch = Math.min(maxH, maxW * (480 / 800), 480);
+      const cw = ch * (800 / 480);
+      canvas.style.width = cw + 'px';
+      canvas.style.height = ch + 'px';
+      leftpad.style.height = ch + 'px';
+      const Hw = ch + 4;
+      const Ww = stripW + cw;
+      rotated = true;
+      wrap.style.position = 'fixed';
+      wrap.style.left = '0';
+      wrap.style.top = '0';
+      wrap.style.transformOrigin = 'top left';
+      wrap.style.transform = `translate(${(iw - Hw) / 2}px, ${(ih + Ww) / 2}px) rotate(-90deg)`;
+    } else {
+      rotated = false;
+      wrap.style.position = '';
+      wrap.style.transform = '';
+      canvas.style.width = '';
+      canvas.style.height = '';
+      leftpad.style.height = '';
+    }
+  }
+  window.addEventListener('resize', fitScreen);
+  window.addEventListener('orientationchange', fitScreen);
+  fitScreen();
 
   function serve(server) {
     ball.lift = 0;
@@ -155,7 +195,11 @@
 
   canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
-    mouseY = (e.clientY - rect.top) * (H / rect.height);
+    if (rotated) {
+      mouseY = Math.max(0, Math.min(H, ((e.clientX - rect.left) / rect.width) * H));
+    } else {
+      mouseY = Math.max(0, Math.min(H, ((e.clientY - rect.top) / rect.height) * H));
+    }
   });
   canvas.addEventListener('mouseleave', () => { mouseY = null; });
 
@@ -165,8 +209,13 @@
 
   function touchToBoard(e) {
     const rect = leftpad.getBoundingClientRect();
-    const t = e.touches[0].clientY - rect.top;
-    mouseY = Math.max(0, Math.min(H, (t / rect.height) * H));
+    if (rotated) {
+      const t = (e.touches[0].clientX - rect.left) / rect.width;
+      mouseY = Math.max(0, Math.min(H, t * H));
+    } else {
+      const t = (e.touches[0].clientY - rect.top) / rect.height;
+      mouseY = Math.max(0, Math.min(H, t * H));
+    }
   }
   ['touchstart', 'touchmove'].forEach((evName) => {
     leftpad.addEventListener(evName, (e) => {
@@ -213,7 +262,7 @@
       ball.vy *= speed / sp;
     }
 
-    ball.lift = Math.max(-2.5, Math.min(2.5, p.vy * 0.25));
+    ball.lift = Math.max(-4.5, Math.min(4.5, p.vy * 0.25));
   }
 
   function update() {
@@ -276,8 +325,8 @@
       else if (ball.x > W + BALL_SIZE) { onPointScored('player'); break; }
     }
 
-    // L'effet s'estompe vite, comme un lift de tennis
-    ball.lift *= 0.88;
+    // L'effet s'estompe progressivement, comme un lift de tennis
+    ball.lift *= 0.93;
 
     trail.push({ x: ball.x, y: ball.y });
     if (trail.length > 8) trail.shift();
@@ -364,7 +413,7 @@
 
     if (state === 'playing' || state === 'paused') {
       drawTrail();
-      ctx.fillStyle = Math.abs(ball.lift) > 0.25 ? '#ffbe5a' : '#e8ecf8';
+      ctx.fillStyle = Math.abs(ball.lift) > 0.35 ? '#ffbe5a' : '#e8ecf8';
       ctx.fillRect(ball.x - BALL_SIZE / 2, ball.y - BALL_SIZE / 2, BALL_SIZE, BALL_SIZE);
     }
 
