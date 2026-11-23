@@ -508,7 +508,8 @@
       ball.vy *= speed / sp;
     }
 
-    ball.lift = Math.max(-liftCap(), Math.min(liftCap(), pvy * liftGain()));
+    // L'effet entrant de la balle se combine a celui imprime par la raquette
+    ball.lift = Math.max(-liftCap(), Math.min(liftCap(), pvy * liftGain() + ball.lift * 0.35));
   }
 
   function update() {
