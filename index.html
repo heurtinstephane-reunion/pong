@@ -169,8 +169,8 @@
     <div id="keysInfo">
       <b>Souris</b> ou <b>&uarr;/&darr;</b> ou <b>W/S</b> : raquette<br>
       <b>Tactile</b> : glisse n'importe o&ugrave; &mdash; moiti&eacute; gauche = joueur 1, moiti&eacute; droite = joueur 2<br>
-      <b>Tap au centre du plateau</b> ou <b>&#9776;</b> : ouvrir ce menu<br>
-      <b>Espace</b> : jouer / pause &nbsp;&middot;&nbsp; <b>P</b> / <b>&Eacute;chap</b> : pause
+      <b>Tap au centre du plateau</b> : lancer, pause, reprise ou mise en jeu<br>
+      <b>&#9776;</b> : ce menu (r&eacute;glages) &nbsp;&middot;&nbsp; <b>Espace</b> : idem que le bouton central
     </div>
     <div class="row">
       <button id="btnResume" type="button">&#9654; Reprendre</button>
@@ -197,7 +197,7 @@
 
   const GOAL_TEXT = 'GOAL!';
   const GOAL_INTERVAL = 300;
-  const GOAL_TOTAL = GOAL_TEXT.length * GOAL_INTERVAL + 900;
+  const GOAL_TOTAL = GOAL_TEXT.length * GOAL_INTERVAL + 600;
 
   const DEFAULTS = { lift: 45, decay: 67, speed: 55, ai: 46, orient: 'auto', twoPlayer: false };
   let cfg = Object.assign({}, DEFAULTS);
@@ -227,6 +227,8 @@
 
   const keys = {};
   let mouseY1 = null, mouseY2 = null;
+  let ballHeld = false;
+  let heldServer = 'p1';
 
   function showMenu(on) {
     menu.classList.toggle('hidden', !on);
@@ -251,29 +253,46 @@
     else if (state === 'paused') resume();
   }
 
-  function serve(server) {
+  function placeBall(server) {
+    heldServer = server;
     ball.lift = 0;
     trail.length = 0;
     p1.vy = 0; p2.vy = 0;
     if (server === 'p1') {
       ball.x = p1.x + PADDLE_W + BALL_SIZE / 2 + 2;
       ball.y = p1.y + PADDLE_H / 2;
-      ball.vx = baseSpeed();
     } else {
       ball.x = p2.x - BALL_SIZE / 2 - 2;
       ball.y = p2.y + PADDLE_H / 2;
-      ball.vx = -baseSpeed();
     }
+    ball.vx = 0;
     ball.vy = (Math.random() * 2 - 1) * 2.5;
     ball.prevX = ball.x;
+    ballHeld = true;
     state = 'playing';
     showMenu(false);
+  }
+
+  function launchServe() {
+    ball.vx = (heldServer === 'p1') ? baseSpeed() : -baseSpeed();
+    ball.prevX = ball.x;
+    ballHeld = false;
+    trail.length = 0;
+  }
+
+  function centerAction() {
+    if (state === 'menu' || state === 'over') startGame();
+    else if (state === 'paused') resume();
+    else if (state === 'playing') {
+      if (ballHeld) launchServe();
+      else state = 'paused';
+    }
   }
 
   function startGame() {
     score1 = 0;
     score2 = 0;
-    serve(Math.random() < 0.5 ? 'p1' : 'p2');
+    placeBall(Math.random() < 0.5 ? 'p1' : 'p2');
   }
 
   function onPointScored(winner) {
@@ -391,8 +410,7 @@
     keys[e.key] = true;
     if (e.key === ' ') {
       if (menuOpen()) { if (state === 'paused') resume(); else startGame(); return; }
-      if (state === 'menu' || state === 'over') startGame();
-      else togglePause();
+      centerAction();
     }
     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
   });
@@ -463,7 +481,7 @@
       if (Math.hypot(t.clientX - tapPending.x, t.clientY - tapPending.y) < 14 &&
           performance.now() - tapPending.t < 700 && state !== 'goal') {
         tapPending = null;
-        openMenu();
+        centerAction();
       }
     }
     tapPending = null;
@@ -471,8 +489,7 @@
 
   canvas.addEventListener('click', (e) => {
     if (menuOpen()) return;
-    if (inMenuCircle(e.clientX, e.clientY)) { openMenu(); return; }
-    if (state === 'menu' || state === 'over') startGame();
+    centerAction();
   });
 
   function collidePaddle(p, movingLeft, dir) {
@@ -516,7 +533,7 @@
     if (state === 'goal') {
       if (performance.now() - goalStart >= GOAL_TOTAL) {
         if (score1 >= WIN_SCORE || score2 >= WIN_SCORE) state = 'over';
-        else serve(upcomingServer);
+        else placeBall(upcomingServer);
       }
       return;
     }
@@ -561,6 +578,20 @@
       }
       p2.y = Math.max(0, Math.min(H - PADDLE_H, p2.y));
       p2.vy = p2.y - y2;
+    }
+
+    // Balle tenue pour la mise en jeu : colle a la raquette du serveur
+    if (ballHeld) {
+      if (heldServer === 'p1') {
+        ball.x = p1.x + PADDLE_W + BALL_SIZE / 2 + 2;
+        ball.y = p1.y + PADDLE_H / 2;
+      } else {
+        ball.x = p2.x - BALL_SIZE / 2 - 2;
+        ball.y = p2.y + PADDLE_H / 2;
+      }
+      ball.prevX = ball.x;
+      trail.length = 0;
+      return;
     }
 
     // Balle : sous-pas pour eviter le tunnelling a haute vitesse
@@ -637,17 +668,27 @@
     }
   }
 
-  function drawMenuCircle() {
+  function drawCenterButton() {
+    const showPlay = (state === 'menu' || state === 'over' || state === 'goal' || state === 'paused' || ballHeld);
     ctx.save();
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = showPlay ? 0.65 : 0.45;
     ctx.strokeStyle = '#7d8fbd';
+    ctx.fillStyle = '#9db4e8';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(W / 2, H / 2, MENU_CIRCLE_R, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = '#7d8fbd';
-    ctx.fillRect(W / 2 - 16, H / 2 - 18, 11, 36);
-    ctx.fillRect(W / 2 + 5, H / 2 - 18, 11, 36);
+    if (showPlay) {
+      ctx.beginPath();
+      ctx.moveTo(W / 2 - 10, H / 2 - 18);
+      ctx.lineTo(W / 2 - 10, H / 2 + 18);
+      ctx.lineTo(W / 2 + 18, H / 2);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillRect(W / 2 - 16, H / 2 - 18, 11, 36);
+      ctx.fillRect(W / 2 + 5, H / 2 - 18, 11, 36);
+    }
     ctx.restore();
   }
 
@@ -694,7 +735,17 @@
     }
 
     if (state === 'goal') drawGoal();
-    drawMenuCircle();
+    drawCenterButton();
+    if (state === 'paused' && !menuOpen()) drawText('PAUSE', 'Espace pour reprendre');
+    if (state === 'playing' && ballHeld) {
+      const who = (heldServer === 'p1')
+        ? (cfg.twoPlayer ? 'Joueur 1' : 'Toi')
+        : (cfg.twoPlayer ? 'Joueur 2' : "L'IA");
+      ctx.fillStyle = '#9db4e8';
+      ctx.font = '22px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Mise en jeu : ' + who + ' — tap ▶ au centre', W / 2, H - 30);
+    }
     if (state === 'menu') drawText('PONG', 'Clique ou Espace pour jouer');
     if (state === 'over') {
       if (cfg.twoPlayer) {
