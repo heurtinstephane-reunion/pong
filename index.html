@@ -21,12 +21,30 @@
     border-radius: 8px;
     box-shadow: 0 0 40px rgba(60, 120, 255, 0.15);
     max-width: 95vw;
-    max-height: 85vh;
+    max-height: 80vh;
     touch-action: none;
   }
+  #touchpad {
+    width: min(800px, 95vw);
+    height: 84px;
+    margin: 10px auto 0;
+    border: 2px dashed #2a3350;
+    border-radius: 8px;
+    background: #0d1119;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4a5a85;
+    font-size: 14px;
+    letter-spacing: 1px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  #touchpad.active { border-color: #4a7bd4; color: #7ea6f0; }
   #help {
     color: #5b6b94;
-    margin-top: 10px;
+    margin-top: 8px;
     font-size: 13px;
     letter-spacing: 1px;
   }
@@ -35,44 +53,70 @@
 <body>
 <div id="wrap">
   <canvas id="game" width="800" height="480"></canvas>
-  <div id="help">Souris ou ↑/↓ (W/S) — Tactile : glisse n'importe où — Espace : lancer / pause</div>
+  <div id="touchpad"><span>&#9664; Glisse ici pour d&eacute;placer ta raquette &#9654;</span></div>
+  <div id="help">Souris ou &uarr;/&darr; (W/S) — Tactile : barre sous le plateau — Espace : lancer / pause</div>
 </div>
 <script>
 (() => {
   const W = 800, H = 480;
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const touchpad = document.getElementById('touchpad');
 
   const PADDLE_W = 12, PADDLE_H = 90, PADDLE_MARGIN = 24;
   const BALL_SIZE = 12;
   const WIN_SCORE = 7;
   const BASE_SPEED = 5.5, MAX_SPEED = 13;
+  const MAX_SPIN = 2.2;
+
+  const GOAL_TEXT = 'GOAL!';
+  const GOAL_INTERVAL = 300;
+  const GOAL_REPEATS = 3;
+  const GOAL_TOTAL = (GOAL_TEXT.length * GOAL_INTERVAL + 600) * GOAL_REPEATS;
 
   let state = 'menu';
   let playerScore = 0, aiScore = 0;
   let rally = 0;
+  let goalStart = 0;
+  let upcomingServer = 'player';
 
-  const player = { x: PADDLE_MARGIN, y: H / 2 - PADDLE_H / 2, vy: 0 };
+  const player = { x: PADDLE_MARGIN, y: H / 2 - PADDLE_H / 2, vy: 0, prevY: H / 2 - PADDLE_H / 2 };
   const ai = { x: W - PADDLE_MARGIN - PADDLE_W, y: H / 2 - PADDLE_H / 2, vy: 0 };
-  const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, prevX: W / 2 };
+  const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, prevX: W / 2, spin: 0 };
+  const trail = [];
 
   const keys = {};
   let mouseY = null;
 
-  function resetBall(direction) {
-    ball.x = W / 2;
-    ball.y = H / 2;
-    ball.prevX = W / 2;
-    ball.vx = direction * BASE_SPEED;
-    ball.vy = (Math.random() * 2 - 1) * 3;
+  function serve(server) {
     rally = 0;
+    ball.spin = 0;
+    trail.length = 0;
+    if (server === 'player') {
+      ball.x = player.x + PADDLE_W + BALL_SIZE / 2 + 2;
+      ball.y = player.y + PADDLE_H / 2;
+      ball.vx = BASE_SPEED;
+    } else {
+      ball.x = ai.x - BALL_SIZE / 2 - 2;
+      ball.y = ai.y + PADDLE_H / 2;
+      ball.vx = -BASE_SPEED;
+    }
+    ball.vy = (Math.random() * 2 - 1) * 3;
+    ball.prevX = ball.x;
+    state = 'playing';
   }
 
   function startGame() {
     playerScore = 0;
     aiScore = 0;
-    resetBall(Math.random() < 0.5 ? 1 : -1);
-    state = 'playing';
+    serve(Math.random() < 0.5 ? 'player' : 'ai');
+  }
+
+  function onPointScored(winner) {
+    if (winner === 'player') playerScore++; else aiScore++;
+    upcomingServer = (winner === 'player') ? 'ai' : 'player';
+    goalStart = performance.now();
+    state = 'goal';
   }
 
   document.addEventListener('keydown', (e) => {
@@ -95,33 +139,38 @@
   canvas.addEventListener('click', () => {
     if (state === 'menu' || state === 'over') startGame();
   });
-  function touchY(e) {
-    const rect = canvas.getBoundingClientRect();
-    return (e.touches[0].clientY - rect.top) * (H / rect.height);
-  }
-  window.addEventListener('touchstart', (e) => {
-    if (state === 'menu' || state === 'over') { startGame(); return; }
-    e.preventDefault();
-    mouseY = touchY(e);
-  }, { passive: false });
-  window.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    mouseY = touchY(e);
-  }, { passive: false });
 
-  function collidePaddle(p, movingLeft) {
+  function touchToBoard(e) {
+    const rect = touchpad.getBoundingClientRect();
+    const t = e.touches[0].clientX - rect.left;
+    mouseY = Math.max(0, Math.min(H, (t / rect.width) * H));
+  }
+  ['touchstart', 'touchmove'].forEach((evName) => {
+    touchpad.addEventListener(evName, (e) => {
+      e.preventDefault();
+      touchpad.classList.add('active');
+      if (state === 'menu' || state === 'over') { startGame(); return; }
+      if (state === 'paused') state = 'playing';
+      touchToBoard(e);
+    }, { passive: false });
+  });
+  ['touchend', 'touchcancel'].forEach((evName) => {
+    touchpad.addEventListener(evName, () => touchpad.classList.remove('active'));
+  });
+
+  function collidePaddle(p, movingLeft, dir) {
     if (ball.y + BALL_SIZE < p.y || ball.y - BALL_SIZE > p.y + PADDLE_H) return;
     if (movingLeft) {
       const plane = p.x + PADDLE_W + BALL_SIZE / 2;
       if (ball.x <= plane && ball.prevX > plane) {
         ball.x = plane;
-        hitPaddle(p, 1);
+        hitPaddle(p, dir);
       }
     } else {
       const plane = p.x - BALL_SIZE / 2;
       if (ball.x >= plane && ball.prevX < plane) {
         ball.x = plane;
-        hitPaddle(p, -1);
+        hitPaddle(p, dir);
       }
     }
   }
@@ -130,26 +179,43 @@
     const rel = ((ball.y - (p.y + PADDLE_H / 2)) / (PADDLE_H / 2));
     const clamped = Math.max(-1, Math.min(1, rel));
     const speed = Math.min(MAX_SPEED, Math.hypot(ball.vx, ball.vy) + 0.4);
-    const maxAngle = Math.PI / 3;
-    const angle = clamped * maxAngle;
+    const angle = clamped * (Math.PI / 3) * 0.75;
+
     ball.vx = Math.cos(angle) * speed * dir;
-    ball.vy = Math.sin(angle) * speed;
+    ball.vy = Math.sin(angle) * speed + p.vy * 0.4;
+
+    const sp = Math.hypot(ball.vx, ball.vy);
+    if (sp > speed) {
+      ball.vx *= speed / sp;
+      ball.vy *= speed / sp;
+    }
+
+    ball.spin = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, p.vy * 0.18));
     rally++;
   }
 
   function update() {
+    if (state === 'goal') {
+      if (performance.now() - goalStart >= GOAL_TOTAL) {
+        if (playerScore >= WIN_SCORE || aiScore >= WIN_SCORE) state = 'over';
+        else serve(upcomingServer);
+      }
+      return;
+    }
     if (state !== 'playing') return;
 
     // Joueur
+    const py = player.y;
     if (mouseY !== null) {
       const target = mouseY - PADDLE_H / 2;
-      player.y += (target - player.y) * 0.35;
+      player.y += (target - player.y) * 0.25;
     }
     if (keys['ArrowUp'] || keys['w']) player.y -= 8;
     if (keys['ArrowDown'] || keys['s']) player.y += 8;
     player.y = Math.max(0, Math.min(H - PADDLE_H, player.y));
+    player.vy = player.y - py;
 
-    // IA : suit la balle avec une vitesse limitée
+    // IA : suit la balle avec une vitesse limitee
     const aiSpeed = 4.6;
     const aiCenter = ai.y + PADDLE_H / 2;
     if (ball.vx > 0) {
@@ -161,6 +227,7 @@
       else if (midY < aiCenter - 10) ai.y -= aiSpeed * 0.25;
     }
     ai.y = Math.max(0, Math.min(H - PADDLE_H, ai.y));
+    ai.vy *= 0.9;
 
     // Balle : sous-pas pour eviter le tunnelling a haute vitesse
     const steps = Math.min(12, Math.max(2, Math.ceil(Math.max(Math.abs(ball.vx), Math.abs(ball.vy)) / 5)));
@@ -170,35 +237,36 @@
       ball.x += ball.vx * dt;
       ball.y += ball.vy * dt;
 
+      if (Math.abs(ball.spin) > 0.05) {
+        ball.vy += ball.spin * dt;
+        ball.spin *= 0.99;
+        const sp = Math.hypot(ball.vx, ball.vy);
+        if (sp > MAX_SPEED * 1.05) {
+          ball.vx *= (MAX_SPEED * 1.05) / sp;
+          ball.vy *= (MAX_SPEED * 1.05) / sp;
+        }
+      }
+
       if (ball.y - BALL_SIZE / 2 < 0) {
         ball.y = BALL_SIZE / 2;
         ball.vy = -ball.vy;
+        ball.spin = -ball.spin;
       }
       if (ball.y + BALL_SIZE / 2 > H) {
         ball.y = H - BALL_SIZE / 2;
         ball.vy = -ball.vy;
+        ball.spin = -ball.spin;
       }
 
-      collidePaddle(player, true);
-      collidePaddle(ai, false);
+      collidePaddle(player, true, 1);
+      collidePaddle(ai, false, -1);
 
-      if (ball.x < -BALL_SIZE) {
-        aiScore++;
-        checkWin();
-        if (state === 'playing') resetBall(1);
-        break;
-      } else if (ball.x > W + BALL_SIZE) {
-        playerScore++;
-        checkWin();
-        if (state === 'playing') resetBall(-1);
-        break;
-      }
+      if (ball.x < -BALL_SIZE) { onPointScored('ai'); break; }
+      else if (ball.x > W + BALL_SIZE) { onPointScored('player'); break; }
     }
-  }
 
-  function checkWin() {
-    if (playerScore >= WIN_SCORE) state = 'over';
-    if (aiScore >= WIN_SCORE) state = 'over';
+    trail.push({ x: ball.x, y: ball.y });
+    if (trail.length > 10) trail.shift();
   }
 
   function drawNet() {
@@ -232,6 +300,44 @@
     }
   }
 
+  function drawTrail() {
+    for (let i = 0; i < trail.length; i++) {
+      const t = trail[i];
+      const alpha = (i / trail.length) * 0.35;
+      const size = BALL_SIZE * (0.4 + (i / trail.length) * 0.6);
+      ctx.fillStyle = `rgba(255, 190, 90, ${alpha})`;
+      ctx.fillRect(t.x - size / 2, t.y - size / 2, size, size);
+    }
+  }
+
+  function drawGoal() {
+    const elapsed = performance.now() - goalStart;
+    const pass = GOAL_TEXT.length * GOAL_INTERVAL;
+    const beats = elapsed % (pass + 600);
+    const letterW = 62;
+    const startX = W / 2 - ((GOAL_TEXT.length - 1) * letterW) / 2;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < GOAL_TEXT.length; i++) {
+      const t = beats - i * GOAL_INTERVAL;
+      let scale = 1;
+      let active = false;
+      if (t >= 0 && t < GOAL_INTERVAL) {
+        scale = 1 + 0.8 * Math.sin(Math.PI * (t / GOAL_INTERVAL));
+        active = true;
+      }
+      ctx.save();
+      ctx.translate(startX + i * letterW, H / 2);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = active ? '#ffd166' : 'rgba(200, 212, 245, 0.35)';
+      ctx.font = 'bold 58px "Courier New", monospace';
+      ctx.fillText(GOAL_TEXT[i], 0, 0);
+      ctx.restore();
+    }
+    ctx.textBaseline = 'alphabetic';
+  }
+
   function draw() {
     ctx.clearRect(0, 0, W, H);
     drawNet();
@@ -241,9 +347,14 @@
     ctx.fillRect(player.x, player.y, PADDLE_W, PADDLE_H);
     ctx.fillStyle = '#f28b82';
     ctx.fillRect(ai.x, ai.y, PADDLE_W, PADDLE_H);
-    ctx.fillStyle = '#e8ecf8';
-    ctx.fillRect(ball.x - BALL_SIZE / 2, ball.y - BALL_SIZE / 2, BALL_SIZE, BALL_SIZE);
 
+    if (state === 'playing' || state === 'paused') {
+      drawTrail();
+      ctx.fillStyle = Math.abs(ball.spin) > 0.25 ? '#ffbe5a' : '#e8ecf8';
+      ctx.fillRect(ball.x - BALL_SIZE / 2, ball.y - BALL_SIZE / 2, BALL_SIZE, BALL_SIZE);
+    }
+
+    if (state === 'goal') drawGoal();
     if (state === 'menu') drawText('PONG', 'Clique ou appuie sur Espace pour jouer');
     if (state === 'paused') drawText('PAUSE', 'Espace pour reprendre');
     if (state === 'over') {
