@@ -141,7 +141,11 @@
 </head>
 <body>
 <div id="wrap"><canvas id="game" width="800" height="480"></canvas></div>
-<div id="side"><button id="menuBtn" type="button">&#9776; Menu</button></div>
+<div id="side">
+  <button id="menuBtn" type="button">&#9776; Menu</button>
+  <button id="rotBtn" type="button">&#10226;</button>
+  <button id="fsBtn" type="button">&#9974;</button>
+</div>
 <div id="menu" class="hidden">
   <div id="panel">
     <h2 id="menuTitle">R&Eacute;GLAGES</h2>
@@ -170,7 +174,8 @@
       <b>Souris</b> ou <b>&uarr;/&darr;</b> ou <b>W/S</b> : raquette<br>
       <b>Tactile</b> : glisse n'importe o&ugrave; &mdash; moiti&eacute; gauche = joueur 1, moiti&eacute; droite = joueur 2<br>
       <b>Tap au centre du plateau</b> : lancer, pause, reprise ou mise en jeu<br>
-      <b>&#9776;</b> : ce menu (r&eacute;glages) &nbsp;&middot;&nbsp; <b>Espace</b> : idem que le bouton central
+      <b>&#9776;</b> : ce menu (r&eacute;glages) &nbsp;&middot;&nbsp; <b>Espace</b> : idem que le bouton central<br>
+      <b>&#10226;</b> ou <b>R</b> : tourner le plateau &nbsp;&middot;&nbsp; <b>&#9974;</b> ou <b>F</b> : plein &eacute;cran
     </div>
     <div class="row">
       <button id="btnResume" type="button">&#9654; Reprendre</button>
@@ -306,6 +311,31 @@
   document.getElementById('menuBtn').addEventListener('click', () => {
     if (menuOpen()) resume(); else openMenu();
   });
+  document.getElementById('rotBtn').addEventListener('click', () => {
+    cfg.orient = rotated ? 'never' : 'force';
+    syncSliders();
+    fitScreen();
+  });
+  const fsBtn = document.getElementById('fsBtn');
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function fsSupported() { return !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen); }
+  fsBtn.addEventListener('click', () => {
+    const el = document.documentElement;
+    try {
+      if (!isFs()) {
+        const p = (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+        if (p && p.catch) p.catch(() => {});
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  });
+  function fsLabel() { fsBtn.textContent = isFs() ? '\u2922' : '\u26F6'; }
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => {
+    document.addEventListener(ev, () => { fsLabel(); fitScreen(); });
+  });
+  if (!fsSupported()) fsBtn.style.display = 'none';
+  fsLabel();
   btnResume.addEventListener('click', () => { if (state === 'paused') resume(); else startGame(); });
   document.getElementById('btnRestart').addEventListener('click', startGame);
   document.getElementById('btnReset').addEventListener('click', () => {
@@ -413,6 +443,14 @@
       centerAction();
     }
     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key === 'r' || e.key === 'R') {
+        cfg.orient = rotated ? 'never' : 'force';
+        syncSliders();
+        fitScreen();
+      }
+      if (e.key === 'f' || e.key === 'F') fsBtn.click();
+    }
   });
   document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
