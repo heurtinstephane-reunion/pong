@@ -24,9 +24,6 @@
     align-items: center;
     gap: 10px;
   }
-  #rotateHint {
-    display: none;
-  }
   canvas {
     background: #10141f;
     border: 2px solid #2a3350;
@@ -37,9 +34,9 @@
     touch-action: none;
   }
   #leftpad {
-    width: 72px;
-    height: min(480px, 80vh);
+    width: 216px;
     flex: none;
+    height: min(480px, 80vh);
     border: 2px dashed #2a3350;
     border-radius: 8px;
     background: #0d1119;
@@ -61,9 +58,10 @@
     top: 10px;
     right: 12px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    z-index: 30;
   }
-  #reload {
+  #side button {
     background: #16203a;
     color: #9db4e8;
     border: 1px solid #2a3350;
@@ -73,7 +71,75 @@
     padding: 6px 12px;
     cursor: pointer;
   }
-  #reload:active { background: #1e2c50; }
+  #side button:active { background: #1e2c50; }
+  #menu {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5, 8, 14, 0.7);
+    touch-action: auto;
+  }
+  #menu.hidden, #help.hidden { display: none; }
+  #panel {
+    background: #101828;
+    border: 2px solid #2a3350;
+    border-radius: 10px;
+    padding: 18px 22px;
+    min-width: min(420px, 90vw);
+    max-width: 92vw;
+    max-height: 92vh;
+    overflow: auto;
+    color: #c8d4f5;
+    text-align: left;
+  }
+  #panel h2 {
+    font-size: 20px;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  #panel label {
+    display: block;
+    font-size: 14px;
+    margin: 10px 0 2px;
+    color: #9db4e8;
+  }
+  #panel label span { color: #ffd166; float: right; }
+  #panel input[type="range"] {
+    width: 100%;
+    accent-color: #4a7bd4;
+    touch-action: auto;
+  }
+  #panel .row {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #panel .row button {
+    flex: 1;
+    min-width: 100px;
+    background: #16203a;
+    color: #c8d4f5;
+    border: 1px solid #2a3350;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 15px;
+    padding: 10px 8px;
+    cursor: pointer;
+  }
+  #panel .row button:hover { background: #1e2c50; }
+  #panel small { color: #5b6b94; display: block; margin-top: 10px; text-align: center; }
+  #help {
+    color: #5b6b94;
+    margin-top: 8px;
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
 </style>
 </head>
 <body>
@@ -82,8 +148,29 @@
   <canvas id="game" width="800" height="480"></canvas>
 </div>
 <div id="side">
-  <button id="reload" type="button">&#8635; Recharger</button>
+  <button id="pauseBtn" type="button">&#10073;&#10073;</button>
+  <button id="reloadBtn" type="button">&#8635;</button>
 </div>
+<div id="menu" class="hidden">
+  <div id="panel">
+    <h2>PAUSE</h2>
+    <label>Lift — puissance <span id="vLift"></span></label>
+    <input type="range" id="sLift" min="0" max="100" value="45">
+    <label>Lift — durée <span id="vDecay"></span></label>
+    <input type="range" id="sDecay" min="0" max="100" value="67">
+    <label>Vitesse de la balle <span id="vSpeed"></span></label>
+    <input type="range" id="sSpeed" min="30" max="120" value="55">
+    <label>Difficulté de l'IA <span id="vAi"></span></label>
+    <input type="range" id="sAi" min="20" max="90" value="46">
+    <div class="row">
+      <button id="btnResume" type="button">&#9654; Reprendre</button>
+      <button id="btnRestart" type="button">&#8635; Recommencer</button>
+      <button id="btnReset" type="button">Réglages par défaut</button>
+    </div>
+    <small>Les réglages s'appliquent en direct et sont mémorisés.</small>
+  </div>
+</div>
+<div id="help">Souris ou &uarr;/&darr; (W/S) — Tactile : bande à gauche — P : pause — Espace : jouer</div>
 <script>
 (() => {
   const W = 800, H = 480;
@@ -91,38 +178,131 @@
   const ctx = canvas.getContext('2d');
   const leftpad = document.getElementById('leftpad');
   const wrap = document.getElementById('wrap');
-  document.getElementById('reload').addEventListener('click', () => location.reload());
+  const menu = document.getElementById('menu');
+  document.getElementById('reloadBtn').addEventListener('click', () => location.reload());
 
   const PADDLE_W = 12, PADDLE_H = 90, PADDLE_MARGIN = 24;
   const BALL_SIZE = 12;
   const WIN_SCORE = 7;
-  const BASE_SPEED = 5.5, MAX_SPEED = 13;
 
   const GOAL_TEXT = 'GOAL!';
   const GOAL_INTERVAL = 300;
-  const GOAL_REPEATS = 3;
-  const GOAL_TOTAL = (GOAL_TEXT.length * GOAL_INTERVAL + 600) * GOAL_REPEATS;
+  const GOAL_REPEATS = 1;
+  const GOAL_TOTAL = GOAL_TEXT.length * GOAL_INTERVAL + 900;
+
+  // Réglages ajustables en jeu
+  const DEFAULTS = { lift: 45, decay: 67, speed: 55, ai: 46 };
+  let cfg = Object.assign({}, DEFAULTS);
+  try {
+    const saved = JSON.parse(localStorage.getItem('pong-settings'));
+    if (saved) cfg = Object.assign(cfg, saved);
+  } catch (e) {}
+  function liftCap() { return cfg.lift / 10; }
+  function liftGain() { return cfg.lift / 180; }
+  function liftDecay() { return 0.85 + (cfg.decay / 100) * 0.12; }
+  function baseSpeed() { return cfg.speed / 10; }
+  function maxSpeed() { return baseSpeed() * 2.36; }
+  function aiSpeed() { return cfg.ai / 10; }
 
   let state = 'menu';
   let playerScore = 0, aiScore = 0;
   let upcomingServer = 'player';
+  let goalStart = 0;
+  let rotated = false;
 
   const player = { x: PADDLE_MARGIN, y: H / 2 - PADDLE_H / 2, vy: 0 };
-  const ai = { x: W - PADDLE_MARGIN - PADDLE_W, y: H / 2 - PADDLE_H / 2, vy: 0 };
+  const ai = { x: W - PADDLE_MARGIN - PADDLE_W, y: H / 2 - PADDLE_H / 2 };
   const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, prevX: W / 2, lift: 0 };
   const trail = [];
 
   const keys = {};
   let mouseY = null;
-  let goalStart = 0;
-  let rotated = false;
+
+  function showMenu(on) { menu.classList.toggle('hidden', !on); }
+
+  function serve(server) {
+    ball.lift = 0;
+    trail.length = 0;
+    player.vy = 0;
+    if (server === 'player') {
+      ball.x = player.x + PADDLE_W + BALL_SIZE / 2 + 2;
+      ball.y = player.y + PADDLE_H / 2;
+      ball.vx = baseSpeed();
+    } else {
+      ball.x = ai.x - BALL_SIZE / 2 - 2;
+      ball.y = ai.y + PADDLE_H / 2;
+      ball.vx = -baseSpeed();
+    }
+    ball.vy = (Math.random() * 2 - 1) * 2.5;
+    ball.prevX = ball.x;
+    state = 'playing';
+    showMenu(false);
+  }
+
+  function startGame() {
+    playerScore = 0;
+    aiScore = 0;
+    serve(Math.random() < 0.5 ? 'player' : 'ai');
+  }
+
+  function onPointScored(winner) {
+    if (winner === 'player') playerScore++; else aiScore++;
+    upcomingServer = (winner === 'player') ? 'ai' : 'player';
+    goalStart = performance.now();
+    state = 'goal';
+    showMenu(false);
+  }
+
+  function togglePause() {
+    if (state === 'playing') { state = 'paused'; showMenu(true); }
+    else if (state === 'paused') { state = 'playing'; showMenu(false); }
+  }
+
+  document.getElementById('pauseBtn').addEventListener('click', togglePause);
+  document.getElementById('btnResume').addEventListener('click', () => {
+    if (state === 'paused') togglePause();
+  });
+  document.getElementById('btnRestart').addEventListener('click', startGame);
+  document.getElementById('btnReset').addEventListener('click', () => {
+    cfg = Object.assign({}, DEFAULTS);
+    localStorage.removeItem('pong-settings');
+    syncSliders();
+  });
+
+  const sLift = document.getElementById('sLift');
+  const sDecay = document.getElementById('sDecay');
+  const sSpeed = document.getElementById('sSpeed');
+  const sAi = document.getElementById('sAi');
+
+  function syncSliders() {
+    sLift.value = cfg.lift; sDecay.value = cfg.decay;
+    sSpeed.value = cfg.speed; sAi.value = cfg.ai;
+    vLift.textContent = cfg.lift + '/100';
+    vDecay.textContent = '(' + liftDecay().toFixed(2) + ') ' + cfg.decay + '/100';
+    vSpeed.textContent = baseSpeed().toFixed(1);
+    vAi.textContent = aiSpeed().toFixed(1);
+    try { localStorage.setItem('pong-settings', JSON.stringify(cfg)); } catch (e) {}
+  }
+  const vLift = document.getElementById('vLift');
+  const vDecay = document.getElementById('vDecay');
+  const vSpeed = document.getElementById('vSpeed');
+  const vAi = document.getElementById('vAi');
+
+  [['sLift', 'lift'], ['sDecay', 'decay'], ['sSpeed', 'speed'], ['sAi', 'ai']].forEach(([id, key]) => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      cfg[key] = Number(e.target.value);
+      syncSliders();
+    });
+  });
+  menu.addEventListener('touchmove', (e) => e.stopPropagation());
+  syncSliders();
 
   // Mode paysage force quand l'ecran est en portrait (rotation du contenu)
   function fitScreen() {
     const iw = window.innerWidth, ih = window.innerHeight;
     const portrait = ih > iw;
     if (portrait) {
-      const stripW = 86;
+      const stripW = 226;
       const maxW = Math.max(200, iw - 16);
       const maxH = Math.max(120, (ih - 20 - stripW) * (480 / 800));
       const ch = Math.min(maxH, maxW * (480 / 800), 480);
@@ -151,45 +331,14 @@
   window.addEventListener('orientationchange', fitScreen);
   fitScreen();
 
-  function serve(server) {
-    ball.lift = 0;
-    trail.length = 0;
-    player.vy = 0;
-    if (server === 'player') {
-      ball.x = player.x + PADDLE_W + BALL_SIZE / 2 + 2;
-      ball.y = player.y + PADDLE_H / 2;
-      ball.vx = BASE_SPEED;
-    } else {
-      ball.x = ai.x - BALL_SIZE / 2 - 2;
-      ball.y = ai.y + PADDLE_H / 2;
-      ball.vx = -BASE_SPEED;
-    }
-    ball.vy = (Math.random() * 2 - 1) * 2.5;
-    ball.prevX = ball.x;
-    state = 'playing';
-  }
-
-  function startGame() {
-    playerScore = 0;
-    aiScore = 0;
-    serve(Math.random() < 0.5 ? 'player' : 'ai');
-  }
-
-  function onPointScored(winner) {
-    if (winner === 'player') playerScore++; else aiScore++;
-    upcomingServer = (winner === 'player') ? 'ai' : 'player';
-    goalStart = performance.now();
-    state = 'goal';
-  }
-
   document.addEventListener('keydown', (e) => {
     if (['ArrowUp', 'ArrowDown', ' '].includes(e.key)) e.preventDefault();
     keys[e.key] = true;
     if (e.key === ' ') {
       if (state === 'menu' || state === 'over') startGame();
-      else if (state === 'playing') state = 'paused';
-      else if (state === 'paused') state = 'playing';
+      else togglePause();
     }
+    if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
   });
   document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
@@ -209,20 +358,17 @@
 
   function touchToBoard(e) {
     const rect = leftpad.getBoundingClientRect();
-    if (rotated) {
-      const t = (e.touches[0].clientX - rect.left) / rect.width;
-      mouseY = Math.max(0, Math.min(H, t * H));
-    } else {
-      const t = (e.touches[0].clientY - rect.top) / rect.height;
-      mouseY = Math.max(0, Math.min(H, t * H));
-    }
+    let t;
+    if (rotated) t = (e.touches[0].clientX - rect.left) / rect.width;
+    else t = (e.touches[0].clientY - rect.top) / rect.height;
+    mouseY = Math.max(0, Math.min(H, t * H));
   }
   ['touchstart', 'touchmove'].forEach((evName) => {
     leftpad.addEventListener(evName, (e) => {
       e.preventDefault();
       leftpad.classList.add('active');
       if (state === 'menu' || state === 'over') { startGame(); return; }
-      if (state === 'paused') state = 'playing';
+      if (state === 'paused') { togglePause(); return; }
       touchToBoard(e);
     }, { passive: false });
   });
@@ -250,7 +396,7 @@
   function hitPaddle(p, dir) {
     const rel = ((ball.y - (p.y + PADDLE_H / 2)) / (PADDLE_H / 2));
     const clamped = Math.max(-1, Math.min(1, rel));
-    const speed = Math.min(MAX_SPEED, Math.hypot(ball.vx, ball.vy) + 0.4);
+    const speed = Math.min(maxSpeed(), Math.hypot(ball.vx, ball.vy) + 0.4);
     const angle = clamped * (Math.PI / 3) * 0.75;
 
     ball.vx = Math.cos(angle) * speed * dir;
@@ -262,7 +408,7 @@
       ball.vy *= speed / sp;
     }
 
-    ball.lift = Math.max(-4.5, Math.min(4.5, p.vy * 0.25));
+    ball.lift = Math.max(-liftCap(), Math.min(liftCap(), p.vy * liftGain()));
   }
 
   function update() {
@@ -287,20 +433,20 @@
     player.vy = player.y - py;
 
     // IA : suit la balle avec une vitesse limitee
-    const aiSpeed = 4.6;
+    const spd = aiSpeed();
     const aiCenter = ai.y + PADDLE_H / 2;
     if (ball.vx > 0) {
-      if (ball.y > aiCenter + 10) ai.y += aiSpeed;
-      else if (ball.y < aiCenter - 10) ai.y -= aiSpeed;
+      if (ball.y > aiCenter + 10) ai.y += spd;
+      else if (ball.y < aiCenter - 10) ai.y -= spd;
     } else {
       const midY = H / 2;
-      if (midY > aiCenter + 10) ai.y += aiSpeed * 0.25;
-      else if (midY < aiCenter - 10) ai.y -= aiSpeed * 0.25;
+      if (midY > aiCenter + 10) ai.y += spd * 0.25;
+      else if (midY < aiCenter - 10) ai.y -= spd * 0.25;
     }
     ai.y = Math.max(0, Math.min(H - PADDLE_H, ai.y));
 
     // Balle : sous-pas pour eviter le tunnelling a haute vitesse
-    const steps = Math.min(12, Math.max(2, Math.ceil(Math.max(Math.abs(ball.vx), Math.abs(ball.vy)) / 5)));
+    const steps = Math.min(14, Math.max(2, Math.ceil(Math.max(Math.abs(ball.vx), Math.abs(ball.vy)) / 5)));
     const dt = 1 / steps;
     for (let i = 0; i < steps; i++) {
       ball.prevX = ball.x;
@@ -325,11 +471,11 @@
       else if (ball.x > W + BALL_SIZE) { onPointScored('player'); break; }
     }
 
-    // L'effet s'estompe progressivement, comme un lift de tennis
-    ball.lift *= 0.93;
+    // L'effet s'estompe, comme un lift de tennis
+    ball.lift *= liftDecay();
 
     trail.push({ x: ball.x, y: ball.y });
-    if (trail.length > 8) trail.shift();
+    if (trail.length > 10) trail.shift();
   }
 
   function drawNet() {
@@ -375,20 +521,21 @@
 
   function drawGoal() {
     const elapsed = performance.now() - goalStart;
-    const pass = GOAL_TEXT.length * GOAL_INTERVAL;
-    const beats = elapsed % (pass + 600);
     const letterW = 62;
     const startX = W / 2 - ((GOAL_TEXT.length - 1) * letterW) / 2;
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let i = 0; i < GOAL_TEXT.length; i++) {
-      const t = beats - i * GOAL_INTERVAL;
+      const t = elapsed - i * GOAL_INTERVAL;
       let scale = 1;
       let active = false;
       if (t >= 0 && t < GOAL_INTERVAL) {
         scale = 1 + 0.8 * Math.sin(Math.PI * (t / GOAL_INTERVAL));
         active = true;
+      }
+      if (t < -0) {
+        scale = 1; active = false;
       }
       ctx.save();
       ctx.translate(startX + i * letterW, H / 2);
@@ -413,13 +560,12 @@
 
     if (state === 'playing' || state === 'paused') {
       drawTrail();
-      ctx.fillStyle = Math.abs(ball.lift) > 0.35 ? '#ffbe5a' : '#e8ecf8';
+      ctx.fillStyle = Math.abs(ball.lift) > 0.25 ? '#ffbe5a' : '#e8ecf8';
       ctx.fillRect(ball.x - BALL_SIZE / 2, ball.y - BALL_SIZE / 2, BALL_SIZE, BALL_SIZE);
     }
 
     if (state === 'goal') drawGoal();
     if (state === 'menu') drawText('PONG', 'Clique ou Espace pour jouer');
-    if (state === 'paused') drawText('PAUSE', 'Espace pour reprendre');
     if (state === 'over') {
       drawText(
         playerScore > aiScore ? 'GAGNÉ !' : 'PERDU…',
