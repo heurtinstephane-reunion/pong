@@ -16,5 +16,6 @@ Télécharge `index.html` et ouvre-le dans n'importe quel navigateur.
 
 ## Publication
 
-Le site est publié automatiquement à chaque push sur `main` via GitHub Actions
-(`.github/workflows/deploy-pages.yml`) et servi par GitHub Pages.
+Le site est publié gratuitement avec GitHub Pages : dans le dépôt, **Settings → Pages**,
+choisir **Branch : main** puis **Save**. Le jeu est mis à jour automatiquement à chaque
+modification de `main`.
