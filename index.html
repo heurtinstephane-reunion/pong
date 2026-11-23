@@ -345,11 +345,15 @@
       const Hw = ch + 4;
       const Ww = cw + 4;
       rotated = true;
+      wrap.style.justifyContent = 'flex-start';
+      wrap.style.alignItems = 'flex-start';
       wrap.style.transformOrigin = 'top left';
       wrap.style.transform = `translate(${(iw - Hw) / 2}px, ${(ih + Ww) / 2}px) rotate(-90deg)`;
     } else {
       rotated = false;
       wrap.style.transform = '';
+      wrap.style.justifyContent = '';
+      wrap.style.alignItems = '';
       if (portrait) {
         const ch = Math.max(120, (ih - 20) * 0.25);
         canvas.style.width = (ch * (800 / 480)) + 'px';
