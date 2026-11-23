@@ -91,12 +91,12 @@
     accent-color: #4a7bd4;
     touch-action: auto;
   }
-  #orientRow {
+  #orientRow, #modeRow {
     display: flex;
     gap: 6px;
     margin-top: 4px;
   }
-  #orientRow button {
+  #orientRow button, #modeRow button {
     flex: 1;
     background: #16203a;
     color: #9db4e8;
@@ -107,7 +107,7 @@
     padding: 8px 4px;
     cursor: pointer;
   }
-  #orientRow button.on { background: #2456a8; color: #eaf1ff; }
+  #orientRow button.on, #modeRow button.on { background: #2456a8; color: #eaf1ff; }
   #panel .row {
     display: flex;
     gap: 8px;
@@ -145,14 +145,21 @@
 <div id="menu" class="hidden">
   <div id="panel">
     <h2 id="menuTitle">R&Eacute;GLAGES</h2>
+    <label>Mode</label>
+    <div id="modeRow">
+      <button type="button" data-mode="1">1 joueur (IA)</button>
+      <button type="button" data-mode="2">2 joueurs</button>
+    </div>
+    <div id="aiRow">
+      <label>Difficult&eacute; de l'IA <span id="vAi"></span></label>
+      <input type="range" id="sAi" min="20" max="90" value="46">
+    </div>
     <label>Lift — puissance <span id="vLift"></span></label>
     <input type="range" id="sLift" min="0" max="100" value="45">
     <label>Lift — dur&eacute;e <span id="vDecay"></span></label>
     <input type="range" id="sDecay" min="0" max="100" value="67">
     <label>Vitesse de la balle <span id="vSpeed"></span></label>
     <input type="range" id="sSpeed" min="30" max="120" value="55">
-    <label>Difficult&eacute; de l'IA <span id="vAi"></span></label>
-    <input type="range" id="sAi" min="20" max="90" value="46">
     <label>Orientation du plateau</label>
     <div id="orientRow">
       <button type="button" data-orient="auto">Auto</button>
@@ -161,7 +168,7 @@
     </div>
     <div id="keysInfo">
       <b>Souris</b> ou <b>&uarr;/&darr;</b> ou <b>W/S</b> : raquette<br>
-      <b>Tactile</b> : glisse n'importe o&ugrave; sur l'&eacute;cran pour contr&ocirc;ler la raquette<br>
+      <b>Tactile</b> : glisse n'importe o&ugrave; &mdash; moiti&eacute; gauche = joueur 1, moiti&eacute; droite = joueur 2<br>
       <b>Tap au centre du plateau</b> ou <b>&#9776;</b> : ouvrir ce menu<br>
       <b>Espace</b> : jouer / pause &nbsp;&middot;&nbsp; <b>P</b> / <b>&Eacute;chap</b> : pause
     </div>
@@ -186,40 +193,40 @@
   const PADDLE_W = 12, PADDLE_H = 90, PADDLE_MARGIN = 24;
   const BALL_SIZE = 12;
   const WIN_SCORE = 7;
-  const MENU_CIRCLE_R = 26;
+  const MENU_CIRCLE_R = 52;
 
   const GOAL_TEXT = 'GOAL!';
   const GOAL_INTERVAL = 300;
   const GOAL_TOTAL = GOAL_TEXT.length * GOAL_INTERVAL + 900;
 
-  // Reglages ajustables en jeu
-  const DEFAULTS = { lift: 45, decay: 67, speed: 55, ai: 46, orient: 'auto' };
+  const DEFAULTS = { lift: 45, decay: 67, speed: 55, ai: 46, orient: 'auto', twoPlayer: false };
   let cfg = Object.assign({}, DEFAULTS);
   try {
     const saved = JSON.parse(localStorage.getItem('pong-settings'));
     if (saved) cfg = Object.assign(cfg, saved);
     if (!['auto', 'force', 'never'].includes(cfg.orient)) cfg.orient = 'auto';
+    cfg.twoPlayer = !!cfg.twoPlayer;
   } catch (e) {}
-  function liftCap() { return cfg.lift / 10; }
-  function liftGain() { return cfg.lift / 180; }
+  function liftCap() { return cfg.lift * 0.14; }
+  function liftGain() { return cfg.lift * 0.14 / 24; }
   function liftDecay() { return 0.85 + (cfg.decay / 100) * 0.12; }
   function baseSpeed() { return cfg.speed / 10; }
   function maxSpeed() { return baseSpeed() * 2.36; }
   function aiSpeed() { return cfg.ai / 10; }
 
   let state = 'menu';
-  let playerScore = 0, aiScore = 0;
-  let upcomingServer = 'player';
+  let score1 = 0, score2 = 0;
+  let upcomingServer = 'p1';
   let goalStart = 0;
   let rotated = false;
 
-  const player = { x: PADDLE_MARGIN, y: H / 2 - PADDLE_H / 2, vy: 0 };
-  const ai = { x: W - PADDLE_MARGIN - PADDLE_W, y: H / 2 - PADDLE_H / 2, vy: 0 };
+  const p1 = { x: PADDLE_MARGIN, y: H / 2 - PADDLE_H / 2, vy: 0 };
+  const p2 = { x: W - PADDLE_MARGIN - PADDLE_W, y: H / 2 - PADDLE_H / 2, vy: 0 };
   const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, prevX: W / 2, lift: 0 };
   const trail = [];
 
   const keys = {};
-  let mouseY = null;
+  let mouseY1 = null, mouseY2 = null;
 
   function showMenu(on) {
     menu.classList.toggle('hidden', !on);
@@ -247,14 +254,14 @@
   function serve(server) {
     ball.lift = 0;
     trail.length = 0;
-    player.vy = 0;
-    if (server === 'player') {
-      ball.x = player.x + PADDLE_W + BALL_SIZE / 2 + 2;
-      ball.y = player.y + PADDLE_H / 2;
+    p1.vy = 0; p2.vy = 0;
+    if (server === 'p1') {
+      ball.x = p1.x + PADDLE_W + BALL_SIZE / 2 + 2;
+      ball.y = p1.y + PADDLE_H / 2;
       ball.vx = baseSpeed();
     } else {
-      ball.x = ai.x - BALL_SIZE / 2 - 2;
-      ball.y = ai.y + PADDLE_H / 2;
+      ball.x = p2.x - BALL_SIZE / 2 - 2;
+      ball.y = p2.y + PADDLE_H / 2;
       ball.vx = -baseSpeed();
     }
     ball.vy = (Math.random() * 2 - 1) * 2.5;
@@ -264,14 +271,14 @@
   }
 
   function startGame() {
-    playerScore = 0;
-    aiScore = 0;
-    serve(Math.random() < 0.5 ? 'player' : 'ai');
+    score1 = 0;
+    score2 = 0;
+    serve(Math.random() < 0.5 ? 'p1' : 'p2');
   }
 
   function onPointScored(winner) {
-    if (winner === 'player') playerScore++; else aiScore++;
-    upcomingServer = (winner === 'player') ? 'ai' : 'player';
+    if (winner === 'p1') score1++; else score2++;
+    upcomingServer = (winner === 'p1') ? 'p2' : 'p1';
     goalStart = performance.now();
     state = 'goal';
     showMenu(false);
@@ -295,6 +302,13 @@
       fitScreen();
     });
   });
+  document.querySelectorAll('#modeRow button').forEach((b) => {
+    b.addEventListener('click', () => {
+      cfg.twoPlayer = (b.dataset.mode === '2');
+      mouseY2 = null;
+      syncSliders();
+    });
+  });
 
   const vLift = document.getElementById('vLift');
   const vDecay = document.getElementById('vDecay');
@@ -313,8 +327,13 @@
     document.querySelectorAll('#orientRow button').forEach((b) => {
       b.classList.toggle('on', b.dataset.orient === cfg.orient);
     });
+    document.querySelectorAll('#modeRow button').forEach((b) => {
+      b.classList.toggle('on', (b.dataset.mode === '2') === cfg.twoPlayer);
+    });
+    document.getElementById('aiRow').style.display = cfg.twoPlayer ? 'none' : '';
     try { localStorage.setItem('pong-settings', JSON.stringify(cfg)); } catch (e) {}
   }
+
   [['sLift', 'lift'], ['sDecay', 'decay'], ['sSpeed', 'speed'], ['sAi', 'ai']].forEach(([id, key]) => {
     document.getElementById(id).addEventListener('input', (e) => {
       cfg[key] = Number(e.target.value);
@@ -323,15 +342,13 @@
   });
   menu.addEventListener('touchmove', (e) => e.stopPropagation());
   menu.addEventListener('click', (e) => {
-    if (e.target === menu && (state === 'paused' || state === 'menu' || state === 'over')) resumeOccupying();
+    if (e.target === menu) {
+      if (state === 'paused') resume();
+      else showMenu(false);
+    }
   });
-  function resumeOccupying() {
-    if (state === 'paused') resume();
-    else showMenu(false);
-  }
   syncSliders();
 
-  // Rotation du plateau en portrait (ou forcee via reglages)
   function fitScreen() {
     const iw = window.innerWidth, ih = window.innerHeight;
     const portrait = ih > iw;
@@ -381,62 +398,76 @@
   });
   document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
-  function updateMouse(clientX, clientY) {
+  function paddleYFromScreen(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     let t;
     if (rotated) t = (clientX - rect.left) / rect.width;
     else t = (clientY - rect.top) / rect.height;
-    mouseY = Math.max(0, Math.min(H, t * H));
+    return Math.max(0, Math.min(H, t * H));
+  }
+  function zoneOf(clientX, clientY) {
+    if (rotated) return clientY >= window.innerHeight / 2 ? 'p1' : 'p2';
+    return clientX <= window.innerWidth / 2 ? 'p1' : 'p2';
+  }
+  function setTouchPaddle(clientX, clientY) {
+    const y = paddleYFromScreen(clientX, clientY);
+    const side = zoneOf(clientX, clientY);
+    if (side === 'p1') mouseY1 = y;
+    else if (cfg.twoPlayer) mouseY2 = y;
   }
 
   canvas.addEventListener('mousemove', (e) => {
-    updateMouse(e.clientX, e.clientY);
+    const side = zoneOf(e.clientX, e.clientY);
+    if (side === 'p1') mouseY1 = paddleYFromScreen(e.clientX, e.clientY);
+    else if (cfg.twoPlayer) mouseY2 = paddleYFromScreen(e.clientX, e.clientY);
   });
-  canvas.addEventListener('mouseleave', () => { mouseY = null; });
 
-  // Cercle central : le menu s'ouvre au tap (pas au glisse)
   function inMenuCircle(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    const cx2 = rect.left + rect.width / 2;
-    const cy2 = rect.top + rect.height / 2;
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
     const scale = rotated ? (rect.width / H) : (rect.width / W);
-    const dx = clientX - cx2, dy = clientY - cy2;
-    return Math.hypot(dx, dy) <= MENU_CIRCLE_R * scale;
+    return Math.hypot(clientX - cx, clientY - cy) <= MENU_CIRCLE_R * scale;
+  }
+  function onMenuBtn(e) {
+    return !!(e.target && e.target.closest && e.target.closest('#side'));
   }
 
-  let touchStart = null;
-  function onTouchStart(e) {
+  let tapPending = null;
+  window.addEventListener('touchstart', (e) => {
+    if (onMenuBtn(e)) return;
     if (menuOpen()) return;
     e.preventDefault();
-    const t = e.touches[0];
-    if (state === 'menu' || state === 'over') { updateMouse(t.clientX, t.clientY); startGame(); return; }
-    if (inMenuCircle(t.clientX, t.clientY)) {
-      touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
+    if (e.touches.length === 1 && inMenuCircle(e.touches[0].clientX, e.touches[0].clientY)) {
+      tapPending = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now() };
       return;
     }
-    touchStart = null;
-    updateMouse(t.clientX, t.clientY);
-  }
-  function onTouchMove(e) {
+    tapPending = null;
+    for (const t of e.touches) {
+      setTouchPaddle(t.clientX, t.clientY);
+      if (state === 'menu' || state === 'over') { startGame(); return; }
+    }
+  }, { passive: false });
+  window.addEventListener('touchmove', (e) => {
+    if (onMenuBtn(e)) return;
     if (menuOpen()) return;
     e.preventDefault();
-    touchStart = null;
-    const t = e.touches[0];
-    updateMouse(t.clientX, t.clientY);
-  }
-  function onTouchEnd(e) {
+    tapPending = null;
+    for (const t of e.touches) setTouchPaddle(t.clientX, t.clientY);
+  }, { passive: false });
+  window.addEventListener('touchend', (e) => {
+    if (onMenuBtn(e)) return;
     if (menuOpen()) return;
-    if (touchStart) {
+    if (tapPending && e.changedTouches.length === 1) {
       const t = e.changedTouches[0];
-      const d = Math.hypot(t.clientX - touchStart.x, t.clientY - touchStart.y);
-      const dt = performance.now() - touchStart.t;
-      if (d < 12 && dt < 600 && state !== 'goal') openMenu();
+      if (Math.hypot(t.clientX - tapPending.x, t.clientY - tapPending.y) < 14 &&
+          performance.now() - tapPending.t < 700 && state !== 'goal') {
+        tapPending = null;
+        openMenu();
+      }
     }
-    touchStart = null;
-  }
-  window.addEventListener('touchstart', onTouchStart, { passive: false });
-  window.addEventListener('touchmove', onTouchMove, { passive: false });
-  window.addEventListener('touchend', onTouchEnd, { passive: false });
+    tapPending = null;
+  }, { passive: false });
 
   canvas.addEventListener('click', (e) => {
     if (menuOpen()) return;
@@ -466,10 +497,10 @@
     const clamped = Math.max(-1, Math.min(1, rel));
     const speed = Math.min(maxSpeed(), Math.hypot(ball.vx, ball.vy) + 0.4);
     const angle = clamped * (Math.PI / 3) * 0.75;
-    const pvy = Math.max(-12, Math.min(12, p.vy || 0));
+    const pvy = Math.max(-14, Math.min(14, p.vy || 0));
 
     ball.vx = Math.cos(angle) * speed * dir;
-    ball.vy = Math.sin(angle) * speed + Math.max(-2, Math.min(2, pvy * 0.25));
+    ball.vy = Math.sin(angle) * speed + Math.max(-2.5, Math.min(2.5, pvy * 0.25));
 
     const sp = Math.hypot(ball.vx, ball.vy);
     if (sp > speed) {
@@ -483,38 +514,53 @@
   function update() {
     if (state === 'goal') {
       if (performance.now() - goalStart >= GOAL_TOTAL) {
-        if (playerScore >= WIN_SCORE || aiScore >= WIN_SCORE) state = 'over';
+        if (score1 >= WIN_SCORE || score2 >= WIN_SCORE) state = 'over';
         else serve(upcomingServer);
       }
       return;
     }
     if (state !== 'playing') return;
 
-    // Joueur
-    const py = player.y;
-    if (mouseY !== null) {
-      const target = mouseY - PADDLE_H / 2;
-      player.y += (target - player.y) * 0.25;
+    // Joueur 1
+    const y1 = p1.y;
+    if (mouseY1 !== null) {
+      const target = mouseY1 - PADDLE_H / 2;
+      p1.y += (target - p1.y) * 0.25;
     }
-    if (keys['ArrowUp'] || keys['w']) player.y -= 8;
-    if (keys['ArrowDown'] || keys['s']) player.y += 8;
-    player.y = Math.max(0, Math.min(H - PADDLE_H, player.y));
-    player.vy = player.y - py;
+    if (keys['w'] || keys['W']) p1.y -= 8;
+    if (keys['s'] || keys['S']) p1.y += 8;
+    if (!cfg.twoPlayer) {
+      if (keys['ArrowUp']) p1.y -= 8;
+      if (keys['ArrowDown']) p1.y += 8;
+    }
+    p1.y = Math.max(0, Math.min(H - PADDLE_H, p1.y));
+    p1.vy = p1.y - y1;
 
-    // IA : suit la balle avec une vitesse limitee
-    const spd = aiSpeed();
-    const aiCenter = ai.y + PADDLE_H / 2;
-    const ay = ai.y;
-    if (ball.vx > 0) {
-      if (ball.y > aiCenter + 10) ai.y += spd;
-      else if (ball.y < aiCenter - 10) ai.y -= spd;
+    // Joueur 2 ou IA
+    const y2 = p2.y;
+    if (cfg.twoPlayer) {
+      if (mouseY2 !== null) {
+        const target = mouseY2 - PADDLE_H / 2;
+        p2.y += (target - p2.y) * 0.25;
+      }
+      if (keys['ArrowUp']) p2.y -= 8;
+      if (keys['ArrowDown']) p2.y += 8;
+      p2.y = Math.max(0, Math.min(H - PADDLE_H, p2.y));
+      p2.vy = p2.y - y2;
     } else {
-      const midY = H / 2;
-      if (midY > aiCenter + 10) ai.y += spd * 0.25;
-      else if (midY < aiCenter - 10) ai.y -= spd * 0.25;
+      const spd = aiSpeed();
+      const center = p2.y + PADDLE_H / 2;
+      if (ball.vx > 0) {
+        if (ball.y > center + 10) p2.y += spd;
+        else if (ball.y < center - 10) p2.y -= spd;
+      } else {
+        const midY = H / 2;
+        if (midY > center + 10) p2.y += spd * 0.25;
+        else if (midY < center - 10) p2.y -= spd * 0.25;
+      }
+      p2.y = Math.max(0, Math.min(H - PADDLE_H, p2.y));
+      p2.vy = p2.y - y2;
     }
-    ai.y = Math.max(0, Math.min(H - PADDLE_H, ai.y));
-    ai.vy = ai.y - ay;
 
     // Balle : sous-pas pour eviter le tunnelling a haute vitesse
     const steps = Math.min(14, Math.max(2, Math.ceil(Math.max(Math.abs(ball.vx), Math.abs(ball.vy)) / 5)));
@@ -535,11 +581,11 @@
         ball.lift = -ball.lift * 0.6;
       }
 
-      collidePaddle(player, true, 1);
-      collidePaddle(ai, false, -1);
+      collidePaddle(p1, true, 1);
+      collidePaddle(p2, false, -1);
 
-      if (ball.x < -BALL_SIZE) { onPointScored('ai'); break; }
-      else if (ball.x > W + BALL_SIZE) { onPointScored('player'); break; }
+      if (ball.x < -BALL_SIZE) { onPointScored('p2'); break; }
+      else if (ball.x > W + BALL_SIZE) { onPointScored('p1'); break; }
     }
 
     // L'effet s'estompe, comme un lift de tennis
@@ -564,8 +610,8 @@
     ctx.fillStyle = 'rgba(140, 160, 220, 0.5)';
     ctx.font = 'bold 56px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(playerScore, W / 2 - 70, 70);
-    ctx.fillText(aiScore, W / 2 + 70, 70);
+    ctx.fillText(score1, W / 2 - 70, 70);
+    ctx.fillText(score2, W / 2 + 70, 70);
   }
 
   function drawText(text, sub) {
@@ -592,16 +638,15 @@
 
   function drawMenuCircle() {
     ctx.save();
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = 0.4;
     ctx.strokeStyle = '#7d8fbd';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(W / 2, H / 2, MENU_CIRCLE_R, 0, Math.PI * 2);
     ctx.stroke();
     ctx.fillStyle = '#7d8fbd';
-    for (let i = -1; i <= 1; i++) {
-      ctx.fillRect(W / 2 - 10, H / 2 + i * 7 - 1.5, 20, 3);
-    }
+    ctx.fillRect(W / 2 - 16, H / 2 - 18, 11, 36);
+    ctx.fillRect(W / 2 + 5, H / 2 - 18, 11, 36);
     ctx.restore();
   }
 
@@ -637,9 +682,9 @@
     drawScore();
 
     ctx.fillStyle = '#7ee081';
-    ctx.fillRect(player.x, player.y, PADDLE_W, PADDLE_H);
-    ctx.fillStyle = '#f28b82';
-    ctx.fillRect(ai.x, ai.y, PADDLE_W, PADDLE_H);
+    ctx.fillRect(p1.x, p1.y, PADDLE_W, PADDLE_H);
+    ctx.fillStyle = cfg.twoPlayer ? '#5aa9f2' : '#f28b82';
+    ctx.fillRect(p2.x, p2.y, PADDLE_W, PADDLE_H);
 
     if (state === 'playing' || state === 'paused') {
       drawTrail();
@@ -651,10 +696,13 @@
     drawMenuCircle();
     if (state === 'menu') drawText('PONG', 'Clique ou Espace pour jouer');
     if (state === 'over') {
-      drawText(
-        playerScore > aiScore ? 'GAGNÉ !' : 'PERDU…',
-        'Clique ou Espace pour rejouer'
-      );
+      if (cfg.twoPlayer) {
+        drawText(score1 > score2 ? 'JOUEUR 1 GAGNE !' : 'JOUEUR 2 GAGNE !',
+          'Clique ou Espace pour rejouer');
+      } else {
+        drawText(score1 > score2 ? 'GAGNÉ !' : 'PERDU…',
+          'Clique ou Espace pour rejouer');
+      }
     }
   }
 
