@@ -8,8 +8,9 @@ Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 
 - **Souris** ou flèches **↑ / ↓** (aussi **W / S**) pour bouger la raquette
 - **Tactile** : glisse n'importe où sur l'écran, la raquette suit (zone invisible plein écran)
+- **2 joueurs** (dans le menu) : tactile moitié gauche = joueur 1, moitié droite = joueur 2 (ou W/S vs ↑/↓ au clavier)
 - **Menu** : tap sur le cercle central du plateau, bouton « ☰ Menu » en haut à droite, **Espace**, **P** ou **Échap**
-- Le menu contient des réglages en direct : puissance et durée du lift, vitesse de la balle, difficulté de l'IA, orientation du plateau (auto / paysage forcé / jamais) — mémorisés localement
+- Le menu contient des réglages en direct : mode (1 joueur IA / 2 joueurs), puissance et durée du lift, vitesse de la balle, difficulté de l'IA, orientation du plateau (auto / paysage forcé / jamais) — mémorisés localement
 - **Effet (lift)** : si la raquette bouge au moment du contact, la balle part en courbe à la manière du tennis (balle orangée + traînée)
 - Premier à **7 points** gagne ; l'animation « GOAL! » précède la remise en jeu par celui qui encaisse
 - **Mobile** : en portrait, le plateau pivote automatiquement en paysage — tourne le téléphone dans le sens horaire (l'orientation peut être changée dans le menu)
