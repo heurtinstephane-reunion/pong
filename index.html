@@ -163,9 +163,9 @@
     <label>Vitesse de la balle <span id="vSpeed"></span></label>
     <input type="range" id="sSpeed" min="30" max="120" value="55">
     <div id="keysInfo">
-      <b>Tactile</b> : glisse en bas de l'&eacute;cran pour ta raquette (joueur 1), en haut pour le joueur 2<br>
+      <b>Tactile</b> : glisse dans ta moiti&eacute; (bas = joueur 1, haut = joueur 2). Bouge la raquette &agrave; droite, &agrave; gauche et vers l'avant (un tiers de ta zone) pour doser l'effet lift&eacute;<br>
       <b>Souris</b> : m&ecirc;me principe, par moiti&eacute; d'&eacute;cran<br>
-      <b>Clavier</b> : <b>&#8592;/&#8594;</b> (ou <b>Q/D</b>) joueur 1 &nbsp;&middot;&nbsp; <b>&uarr;/&darr;</b> joueur 2<br>
+      <b>Clavier</b> : <b>&#8592;/&#8594;</b> (ou <b>Q/D</b>) et <b>&uarr;/&darr;</b> (ou <b>Z/S</b>) joueur 1 &nbsp;&middot;&nbsp; <b>&#8592;/&#8594; + &uarr;/&darr;</b> joueur 2<br>
       <b>Tap au centre</b> : lancer, pause, reprise, mise en jeu &nbsp;&middot;&nbsp; <b>Espace</b> : idem<br>
       <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>P</b>/<b>&Eacute;chap</b> : pause &nbsp;&middot;&nbsp; <b>F</b> : plein &eacute;cran
     </div>
@@ -188,6 +188,7 @@
   const btnResume = document.getElementById('btnResume');
 
   const PADDLE_T = 12, PADDLE_LEN = 90, PADDLE_MARGIN = 24;
+  const FORWARD_ZONE = (H / 2) / 3;
   const BALL_SIZE = 12;
   const WIN_SCORE = 7;
   const MENU_CIRCLE_R = 52;
@@ -213,17 +214,51 @@
   let state = 'menu';
   let score1 = 0, score2 = 0;
   let upcomingServer = 'p1';
+  let goalScorer = null;
   let goalStart = 0;
   let ballHeld = false;
   let heldServer = 'p1';
 
-  const p1 = { x: W / 2 - PADDLE_LEN / 2, y: H - PADDLE_MARGIN - PADDLE_T, vx: 0 };
-  const p2 = { x: W / 2 - PADDLE_LEN / 2, y: PADDLE_MARGIN, vx: 0 };
+  const p1 = { x: W / 2 - PADDLE_LEN / 2, y: H - PADDLE_MARGIN - PADDLE_T, vx: 0, vy: 0 };
+  const p2 = { x: W / 2 - PADDLE_LEN / 2, y: PADDLE_MARGIN, vx: 0, vy: 0 };
   const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, prevY: H / 2, lift: 0 };
   const trail = [];
 
   const keys = {};
-  let touchX1 = null, touchX2 = null;
+  let touchX1 = null, touchX2 = null, touchY1 = null, touchY2 = null;
+
+  let audioCtx = null;
+  function ensureAudio() {
+    try {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) {}
+  }
+  function pointSound(winner) {
+    if (!audioCtx) return;
+    try {
+      const t0 = audioCtx.currentTime;
+      const notes = (winner === 'p1') ? [523, 659, 784] : [659, 523, 392];
+      notes.forEach((f, i) => {
+        const st = t0 + i * 0.09;
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, st);
+        g.gain.exponentialRampToValueAtTime(0.3, st + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, st + 0.08);
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start(st);
+        o.stop(st + 0.1);
+      });
+    } catch (e) {}
+  }
+  window.addEventListener('pointerdown', ensureAudio);
 
   function showMenu(on) {
     menu.classList.toggle('hidden', !on);
@@ -253,6 +288,7 @@
     ball.lift = 0;
     trail.length = 0;
     p1.vx = 0; p2.vx = 0;
+    p1.vy = 0; p2.vy = 0;
     if (server === 'p1') {
       ball.x = p1.x + PADDLE_LEN / 2;
       ball.y = p1.y - BALL_SIZE / 2 - 2;
@@ -276,6 +312,7 @@
   }
 
   function centerAction() {
+    ensureAudio();
     if (state === 'menu' || state === 'over') startGame();
     else if (state === 'paused') resume();
     else if (state === 'playing') {
@@ -292,9 +329,11 @@
 
   function onPointScored(winner) {
     if (winner === 'p1') score1++; else score2++;
+    goalScorer = winner;
     upcomingServer = (winner === 'p1') ? 'p2' : 'p1';
     goalStart = performance.now();
     state = 'goal';
+    pointSound(winner);
     showMenu(false);
   }
 
@@ -333,6 +372,7 @@
     b.addEventListener('click', () => {
       cfg.twoPlayer = (b.dataset.mode === '2');
       touchX2 = null;
+      touchY2 = null;
       syncSliders();
     });
   });
@@ -395,26 +435,19 @@
   });
   document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
-  function paddleXFromScreen(clientX, clientY) {
-    const rect = canvas.getBoundingClientRect();
-    const t = (clientX - rect.left) / rect.width;
-    return Math.max(0, Math.min(W, t * W));
-  }
   function zoneOf(clientY) {
     return clientY >= window.innerHeight / 2 ? 'p1' : 'p2';
   }
   function setTouchPaddle(clientX, clientY) {
-    const x = paddleXFromScreen(clientX, clientY);
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.max(0, Math.min(W, ((clientX - rect.left) / rect.width) * W));
+    const y = Math.max(0, Math.min(H, ((clientY - rect.top) / rect.height) * H));
     const side = zoneOf(clientY);
-    if (side === 'p1') touchX1 = x;
-    else if (cfg.twoPlayer) touchX2 = x;
+    if (side === 'p1') { touchX1 = x; touchY1 = y; }
+    else if (cfg.twoPlayer) { touchX2 = x; touchY2 = y; }
   }
 
-  canvas.addEventListener('mousemove', (e) => {
-    const side = zoneOf(e.clientY);
-    if (side === 'p1') touchX1 = paddleXFromScreen(e.clientX, e.clientY);
-    else if (cfg.twoPlayer) touchX2 = paddleXFromScreen(e.clientX, e.clientY);
-  });
+  canvas.addEventListener('mousemove', (e) => setTouchPaddle(e.clientX, e.clientY));
 
   function inMenuCircle(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
@@ -491,8 +524,9 @@
     const speed = Math.min(maxSpeed(), Math.hypot(ball.vx, ball.vy) + 0.4);
     const angle = clamped * (Math.PI / 3) * 0.75;
     const pvx = Math.max(-14, Math.min(14, p.vx || 0));
+    const pvy = Math.max(-14, Math.min(14, p.vy || 0));
 
-    ball.vy = Math.cos(angle) * speed * dir;
+    ball.vy = Math.cos(angle) * speed * dir + Math.max(-2.5, Math.min(2.5, pvy * dir * 0.25)) * dir;
     ball.vx = Math.sin(angle) * speed + Math.max(-2.5, Math.min(2.5, pvx * 0.25));
 
     const sp = Math.hypot(ball.vx, ball.vy);
@@ -514,8 +548,9 @@
     }
     if (state !== 'playing') return;
 
-    // Joueur 1 (bas)
-    const x1 = p1.x;
+    // Joueur 1 (bas) — se deplace aussi vers l'avant sur un tiers de sa zone
+    const x1 = p1.x, y1 = p1.y;
+    const y1Base = H - PADDLE_MARGIN - PADDLE_T;
     if (touchX1 !== null) {
       const target = touchX1 - PADDLE_LEN / 2;
       p1.x += (target - p1.x) * 0.25;
@@ -523,14 +558,22 @@
     if (!cfg.twoPlayer) {
       if (keys['ArrowLeft']) p1.x -= 8;
       if (keys['ArrowRight']) p1.x += 8;
+      if (keys['ArrowUp']) p1.y -= 8;
+      if (keys['ArrowDown']) p1.y += 8;
     }
     if (keys['q'] || keys['Q'] || keys['a'] || keys['A']) p1.x -= 8;
     if (keys['d'] || keys['D']) p1.x += 8;
+    if (keys['z'] || keys['Z'] || keys['w'] || keys['W']) p1.y -= 8;
+    if (keys['s'] || keys['S']) p1.y += 8;
+    if (touchY1 !== null) p1.y += (Math.max(y1Base - FORWARD_ZONE, Math.min(y1Base, touchY1)) - p1.y) * 0.25;
     p1.x = Math.max(0, Math.min(W - PADDLE_LEN, p1.x));
+    p1.y = Math.max(y1Base - FORWARD_ZONE, Math.min(y1Base, p1.y));
     p1.vx = p1.x - x1;
+    p1.vy = p1.y - y1;
 
     // Joueur 2 (haut) ou IA
-    const x2 = p2.x;
+    const x2 = p2.x, y2 = p2.y;
+    const y2Base = PADDLE_MARGIN;
     if (cfg.twoPlayer) {
       if (touchX2 !== null) {
         const target = touchX2 - PADDLE_LEN / 2;
@@ -538,8 +581,13 @@
       }
       if (keys['ArrowLeft']) p2.x -= 8;
       if (keys['ArrowRight']) p2.x += 8;
+      if (keys['ArrowUp']) p2.y -= 8;
+      if (keys['ArrowDown']) p2.y += 8;
+      if (touchY2 !== null) p2.y += (Math.max(y2Base, Math.min(y2Base + FORWARD_ZONE, touchY2)) - p2.y) * 0.25;
       p2.x = Math.max(0, Math.min(W - PADDLE_LEN, p2.x));
+      p2.y = Math.max(y2Base, Math.min(y2Base + FORWARD_ZONE, p2.y));
       p2.vx = p2.x - x2;
+      p2.vy = p2.y - y2;
     } else {
       const spd = aiSpeed();
       const center = p2.x + PADDLE_LEN / 2;
@@ -617,8 +665,18 @@
     ctx.fillStyle = 'rgba(140, 160, 220, 0.5)';
     ctx.font = 'bold 96px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(score2, W / 2, 170);
-    ctx.fillText(score1, W / 2, H - 120);
+    ctx.textBaseline = 'middle';
+    if (cfg.twoPlayer) {
+      ctx.save();
+      ctx.translate(W / 2, 136);
+      ctx.rotate(Math.PI);
+      ctx.fillText(score2, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.fillText(score2, W / 2, 136);
+    }
+    ctx.fillText(score1, W / 2, H - 155);
+    ctx.textBaseline = 'alphabetic';
   }
 
   function drawText(text) {
@@ -664,8 +722,9 @@
 
   function drawGoal() {
     const elapsed = performance.now() - goalStart;
-    const letterH = 78;
-    const startY = H / 2 - ((GOAL_TEXT.length - 1) * letterH) / 2;
+    const letterW = 70;
+    const startX = W / 2 - ((GOAL_TEXT.length - 1) * letterW) / 2;
+    const goalY = (goalScorer === 'p1') ? H / 2 + 170 : H / 2 - 170;
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -678,7 +737,7 @@
         active = true;
       }
       ctx.save();
-      ctx.translate(W / 2, startY + i * letterH);
+      ctx.translate(startX + i * letterW, goalY);
       ctx.scale(scale, scale);
       ctx.fillStyle = active ? '#ffd166' : 'rgba(200, 212, 245, 0.35)';
       ctx.font = 'bold 58px "Courier New", monospace';

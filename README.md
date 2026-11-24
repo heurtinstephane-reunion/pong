@@ -8,6 +8,7 @@ Le téléphone se tient **en mode portrait** : le joueur 1 est **en bas**, l'IA 
 Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 
 - **Tactile** : glisse n'importe où sur l'écran. Moitié basse = raquette du joueur 1 (verte), moitié haute = raquette du joueur 2 (bleue, uniquement en mode 2 joueurs). La zone tactile est invisible et couvre tout l'écran.
+- **Avancer la raquette** : en plus de droite/gauche, la raquette peut avancer vers la balle sur un tiers de la zone du joueur (tactile, souris ou touches ↑/↓ / Z/S pour le joueur 1) — idéal pour doser l'effet lifté.
 - **Souris** : même principe, la raquette suit le curseur selon la moitié de l'écran.
 - **Clavier** : flèches **← / →** ou **Q / D** (aussi **A / D**) pour la raquette du bas.
 - **Bouton central du plateau** : lance la partie, met en pause (message « Pause »), reprend (les deux barres deviennent un triangle ▶) et effectue chaque remise en jeu (la balle reste collée à la raquette du serveur — celui qui vient d'encaisser sert).
@@ -15,8 +16,8 @@ Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 - **Plein écran** : bouton « ⛶ » en bas à droite, ou touche **F**.
 - Le menu, affiché verticalement, contient des réglages en direct : mode (1 joueur IA / 2 joueurs), effet (lift), durée de l'effet, vitesse de la balle, difficulté de l'IA — mémorisés localement.
 - **Effet (lift)** : si la raquette bouge au moment du contact, la balle part en courbe à la manière du tennis (balle orangée + traînée). Les parois latérales transfèrent une partie de l'effet.
-- Le **score** s'affiche en grand et en miroir dans chaque zone : score du joueur 2 en haut, score du joueur 1 en bas.
-- Premier à **7 points** gagne ; après chaque point, courte animation « GOAL! » (chaque lettre grossit une à une, un seul passage) puis remise en jeu.
+- Le **score** s'affiche en grand et en miroir dans chaque zone : score du joueur 2 en haut, score du joueur 1 en bas. En mode 2 joueurs, le score d'en haut est affiché à l'envers pour être lisible par le joueur 2.
+- Premier à **7 points** gagne ; après chaque point, courte animation « GOAL! » horizontale affichée dans la zone de celui qui a marqué, accompagnée d'un petit son, puis remise en jeu.
 - Sur smartphone, le glisser vers le bas ne recharge plus la page (comportement tactile désactivé pendant le jeu).
 
 ## En local
