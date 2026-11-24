@@ -14,7 +14,7 @@ Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 - Le menu contient des réglages en direct : mode (1 joueur IA / 2 joueurs), puissance et durée du lift, vitesse de la balle, difficulté de l'IA, orientation du plateau (auto / paysage forcé / jamais) — mémorisés localement
 - **Effet (lift)** : si la raquette bouge au moment du contact, la balle part en courbe à la manière du tennis (balle orangée + traînée)
 - Premier à **7 points** gagne ; l'animation « GOAL! » précède la remise en jeu par celui qui encaisse
-- **Mobile / orientation** : bouton **⟲** (touche **R**) pour tourner le plateau manuellement — l'option Auto du menu s'appuie sur l'orientation de l'écran, ou choisis « Paysage forcé » / « Jamais »
+- **Mobile / orientation** : bouton **⟲** (touche **R**) pour basculer entre les deux sens de paysage (et revenir à l'affichage droit) ; le menu propose aussi Auto / Paysage ↻ / Paysage ↺ / Jamais. Boutons et menu pivotent avec le plateau (☰ à gauche, ⟲ et ⛶ à droite)
 - **Plein écran** : bouton **⛶** (touche **F**)
 
 ## En local
