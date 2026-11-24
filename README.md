@@ -1,21 +1,23 @@
-# Pong 🏓
+# Pong 🏓 (édition verticale)
 
 Petit jeu Pong jouable dans le navigateur, 100 % HTML/CSS/JavaScript, sans dépendance.
+Le téléphone se tient **en mode portrait** : le joueur 1 est **en bas**, l'IA (ou le joueur 2) est **en haut**.
 
 ## Comment jouer
 
 Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 
-- **Souris** ou flèches **↑ / ↓** (aussi **W / S**) pour bouger la raquette
-- **Tactile** : glisse n'importe où sur l'écran, la raquette suit (zone invisible plein écran)
-- **2 joueurs** (dans le menu) : tactile moitié gauche = joueur 1, moitié droite = joueur 2 (ou W/S vs ↑/↓ au clavier)
-- **Bouton central du plateau** : lance la partie, met en pause (message « PAUSE »), reprend (le bouton devient un triangle ▶) et effectue chaque remise en jeu (la balle attend collée à la raquette du serveur)
-- **Menu** : bouton « ☰ Menu » en haut à droite, **P** ou **Échap**
-- Le menu contient des réglages en direct : mode (1 joueur IA / 2 joueurs), puissance et durée du lift, vitesse de la balle, difficulté de l'IA, orientation du plateau (auto / paysage forcé / jamais) — mémorisés localement
-- **Effet (lift)** : si la raquette bouge au moment du contact, la balle part en courbe à la manière du tennis (balle orangée + traînée)
-- Premier à **7 points** gagne ; l'animation « GOAL! » précède la remise en jeu par celui qui encaisse
-- **Mobile / orientation** : bouton **⟲** (touche **R**) pour basculer entre les deux sens de paysage (et revenir à l'affichage droit) ; le menu propose aussi Auto / Paysage ↻ / Paysage ↺ / Jamais. Boutons et menu pivotent avec le plateau (☰ à gauche, ⟲ et ⛶ à droite)
-- **Plein écran** : bouton **⛶** (touche **F**)
+- **Tactile** : glisse n'importe où sur l'écran. Moitié basse = raquette du joueur 1 (verte), moitié haute = raquette du joueur 2 (bleue, uniquement en mode 2 joueurs). La zone tactile est invisible et couvre tout l'écran.
+- **Souris** : même principe, la raquette suit le curseur selon la moitié de l'écran.
+- **Clavier** : flèches **← / →** ou **Q / D** (aussi **A / D**) pour la raquette du bas.
+- **Bouton central du plateau** : lance la partie, met en pause (message « Pause »), reprend (les deux barres deviennent un triangle ▶) et effectue chaque remise en jeu (la balle reste collée à la raquette du serveur — celui qui vient d'encaisser sert).
+- **Menu** : bouton « ☰ Menu » en bas à gauche, **P** ou **Échap**.
+- **Plein écran** : bouton « ⛶ » en bas à droite, ou touche **F**.
+- Le menu, affiché verticalement, contient des réglages en direct : mode (1 joueur IA / 2 joueurs), effet (lift), durée de l'effet, vitesse de la balle, difficulté de l'IA — mémorisés localement.
+- **Effet (lift)** : si la raquette bouge au moment du contact, la balle part en courbe à la manière du tennis (balle orangée + traînée). Les parois latérales transfèrent une partie de l'effet.
+- Le **score** s'affiche en grand et en miroir dans chaque zone : score du joueur 2 en haut, score du joueur 1 en bas.
+- Premier à **7 points** gagne ; après chaque point, courte animation « GOAL! » (chaque lettre grossit une à une, un seul passage) puis remise en jeu.
+- Sur smartphone, le glisser vers le bas ne recharge plus la page (comportement tactile désactivé pendant le jeu).
 
 ## En local
 
@@ -24,5 +26,5 @@ Télécharge `index.html` et ouvre-le dans n'importe quel navigateur.
 ## Publication
 
 Le site est publié gratuitement avec GitHub Pages : dans le dépôt, **Settings → Pages**,
-choisir **Branch : main** puis **Save**. Le jeu est mis à jour automatiquement à chaque
-modification de `main`.
+choisir **Deploy from a branch**, branche **main**, dossier **/ (root)** puis **Save**.
+Le jeu est mis à jour automatiquement à chaque modification de `main`.
