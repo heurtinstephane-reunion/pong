@@ -460,62 +460,66 @@
     return !!(e.target && e.target.closest && e.target.closest('#sideL, #sideR'));
   }
 
-  let tapPending = null;
+  const taps = {};
   window.addEventListener('touchstart', (e) => {
     if (onSideButtons(e)) return;
     if (menuOpen()) return;
     e.preventDefault();
-    if (e.touches.length === 1 && inMenuCircle(e.touches[0].clientX, e.touches[0].clientY)) {
-      tapPending = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now() };
-      return;
+    for (const t of e.changedTouches) {
+      taps[t.identifier] = { x: t.clientX, y: t.clientY, t: performance.now() };
     }
-    tapPending = null;
-    for (const t of e.touches) {
-      setTouchPaddle(t.clientX, t.clientY);
-      if (state === 'menu' || state === 'over') { startGame(); return; }
+    for (const t of e.touches) setTouchPaddle(t.clientX, t.clientY);
+    if ((state === 'menu' || state === 'over') &&
+        !(e.touches.length === 1 && inMenuCircle(e.touches[0].clientX, e.touches[0].clientY))) {
+      startGame();
     }
   }, { passive: false });
   window.addEventListener('touchmove', (e) => {
     if (onSideButtons(e)) return;
     if (menuOpen()) return;
     e.preventDefault();
-    tapPending = null;
+    for (const t of e.changedTouches) {
+      const info = taps[t.identifier];
+      if (info && Math.hypot(t.clientX - info.x, t.clientY - info.y) > 14) info.canceled = true;
+    }
     for (const t of e.touches) setTouchPaddle(t.clientX, t.clientY);
   }, { passive: false });
   window.addEventListener('touchend', (e) => {
     if (onSideButtons(e)) return;
     if (menuOpen()) return;
-    if (tapPending && e.changedTouches.length === 1) {
-      const t = e.changedTouches[0];
-      if (Math.hypot(t.clientX - tapPending.x, t.clientY - tapPending.y) < 14 &&
-          performance.now() - tapPending.t < 700 && state !== 'goal') {
-        tapPending = null;
+    for (const t of e.changedTouches) {
+      const info = taps[t.identifier];
+      delete taps[t.identifier];
+      if (!info || info.canceled) continue;
+      if (performance.now() - info.t >= 700) continue;
+      if (state === 'goal') continue;
+      if (inMenuCircle(t.clientX, t.clientY)) {
         centerAction();
+        continue;
       }
+      if (state === 'playing' && ballHeld && zoneOf(t.clientY) === heldServer) launchServe();
     }
-    tapPending = null;
   }, { passive: false });
 
   canvas.addEventListener('click', (e) => {
     if (menuOpen()) return;
+    if (state === 'playing' && ballHeld && !inMenuCircle(e.clientX, e.clientY) && zoneOf(e.clientY) === heldServer) {
+      launchServe();
+      return;
+    }
     centerAction();
   });
 
   function collidePaddle(p, topPaddle) {
-    if (ball.x + BALL_SIZE < p.x || ball.x - BALL_SIZE > p.x + PADDLE_LEN) return;
-    if (topPaddle) {
-      const plane = p.y + PADDLE_T + BALL_SIZE / 2;
-      if (ball.y <= plane && ball.prevY > plane) {
-        ball.y = plane;
-        hitPaddle(p, 1);
-      }
-    } else {
-      const plane = p.y - BALL_SIZE / 2;
-      if (ball.y >= plane && ball.prevY < plane) {
-        ball.y = plane;
-        hitPaddle(p, -1);
-      }
-    }
+    const half = BALL_SIZE / 2;
+    if (ball.x + half < p.x || ball.x - half > p.x + PADDLE_LEN) return;
+    if (ball.y + half < p.y || ball.y - half > p.y + PADDLE_T) return;
+    const midY = p.y + PADDLE_T / 2;
+    const fromFront = topPaddle ? (ball.y >= midY) : (ball.y <= midY);
+    if (!fromFront) return;
+    ball.x = Math.max(p.x + half + 0.01, Math.min(p.x + PADDLE_LEN - half - 0.01, ball.x));
+    ball.y = topPaddle ? (p.y + PADDLE_T + half) : (p.y - half);
+    hitPaddle(p, topPaddle ? 1 : -1);
   }
 
   function hitPaddle(p, dir) {

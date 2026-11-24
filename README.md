@@ -11,7 +11,8 @@ Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 - **Avancer la raquette** : en plus de droite/gauche, la raquette peut avancer vers la balle sur un tiers de la zone du joueur (tactile, souris ou touches ↑/↓ / Z/S pour le joueur 1) — idéal pour doser l'effet lifté.
 - **Souris** : même principe, la raquette suit le curseur selon la moitié de l'écran.
 - **Clavier** : flèches **← / →** ou **Q / D** (aussi **A / D**) pour la raquette du bas.
-- **Bouton central du plateau** : lance la partie, met en pause (message « Pause »), reprend (les deux barres deviennent un triangle ▶) et effectue chaque remise en jeu (la balle reste collée à la raquette du serveur — celui qui vient d'encaisser sert).
+- **Bouton central du plateau** : lance la partie, met en pause (message « Pause »), reprend (les deux barres deviennent un triangle ▶) et effectue chaque remise en jeu (la balle reste collée à la raquette du serveur — celui qui vient d'encaisser sert). Il ne réagit qu'aux tapotements, pas aux glissés.
+- **Remise en jeu rapide** : le serveur peut aussi lancer la balle d'un simple tapotement dans sa propre zone.
 - **Menu** : bouton « ☰ Menu » en bas à gauche, **P** ou **Échap**.
 - **Plein écran** : bouton « ⛶ » en bas à droite, ou touche **F**.
 - Le menu, affiché verticalement, contient des réglages en direct : mode (1 joueur IA / 2 joueurs), effet (lift), durée de l'effet, vitesse de la balle, difficulté de l'IA — mémorisés localement.
