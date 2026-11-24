@@ -32,27 +32,30 @@
   }
   body:not(.rotated) canvas {
     max-width: 96vw;
-    max-height: 96vh;
+    max-height: 92vh;
   }
-  #side {
-    position: fixed;
-    top: 10px;
-    right: 12px;
-    z-index: 30;
+  #sideL, #sideR {
+    position: absolute;
+    top: 12px;
+    z-index: 50;
+    display: flex;
+    gap: 8px;
   }
-  #menuBtn {
-    background: rgba(22, 32, 58, 0.6);
+  #sideL { left: 12px; }
+  #sideR { right: 12px; }
+  #sideL button, #sideR button {
+    background: rgba(22, 32, 58, 0.7);
     color: #9db4e8;
-    border: 1px solid rgba(42, 51, 80, 0.7);
-    border-radius: 6px;
+    border: 2px solid rgba(66, 82, 130, 0.9);
+    border-radius: 8px;
     font-family: inherit;
-    font-size: 16px;
-    padding: 6px 14px;
+    font-size: 18px;
+    padding: 10px 18px;
     cursor: pointer;
   }
-  #menuBtn:active { background: rgba(30, 44, 80, 0.9); }
+  #sideL button:active, #sideR button:active { background: rgba(38, 56, 100, 0.9); }
   #menu {
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: 40;
     display: flex;
@@ -140,49 +143,52 @@
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="game" width="800" height="480"></canvas></div>
-<div id="side">
-  <button id="menuBtn" type="button">&#9776; Menu</button>
-  <button id="rotBtn" type="button">&#10226;</button>
-  <button id="fsBtn" type="button">&#9974;</button>
-</div>
-<div id="menu" class="hidden">
-  <div id="panel">
-    <h2 id="menuTitle">R&Eacute;GLAGES</h2>
-    <label>Mode</label>
-    <div id="modeRow">
-      <button type="button" data-mode="1">1 joueur (IA)</button>
-      <button type="button" data-mode="2">2 joueurs</button>
+<div id="wrap">
+  <div id="sideL"><button id="menuBtn" type="button">&#9776; Menu</button></div>
+  <canvas id="game" width="800" height="480"></canvas>
+  <div id="sideR">
+    <button id="rotBtn" type="button">&#10226;</button>
+    <button id="fsBtn" type="button">&#9974;</button>
+  </div>
+  <div id="menu" class="hidden">
+    <div id="panel">
+      <h2 id="menuTitle">R&Eacute;GLAGES</h2>
+      <label>Mode</label>
+      <div id="modeRow">
+        <button type="button" data-mode="1">1 joueur (IA)</button>
+        <button type="button" data-mode="2">2 joueurs</button>
+      </div>
+      <div id="aiRow">
+        <label>Difficult&eacute; de l'IA <span id="vAi"></span></label>
+        <input type="range" id="sAi" min="20" max="90" value="46">
+      </div>
+      <label>Lift — puissance <span id="vLift"></span></label>
+      <input type="range" id="sLift" min="0" max="100" value="45">
+      <label>Lift — dur&eacute;e <span id="vDecay"></span></label>
+      <input type="range" id="sDecay" min="0" max="100" value="67">
+      <label>Vitesse de la balle <span id="vSpeed"></span></label>
+      <input type="range" id="sSpeed" min="30" max="120" value="55">
+      <label>Orientation du plateau</label>
+      <div id="orientRow">
+        <button type="button" data-orient="auto">Auto</button>
+        <button type="button" data-orient="rot1">Paysage &#8635;</button>
+        <button type="button" data-orient="rot2">Paysage &#8634;</button>
+        <button type="button" data-orient="never">Jamais</button>
+      </div>
+      <div id="keysInfo">
+        <b>Souris</b> ou <b>&uarr;/&darr;</b> ou <b>W/S</b> : raquette<br>
+        <b>Tactile</b> : glisse n'importe o&ugrave; &mdash; moiti&eacute; gauche = joueur 1, moiti&eacute; droite = joueur 2<br>
+        <b>Tap au centre du plateau</b> : lancer, pause, reprise ou mise en jeu<br>
+        <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>&#10226;</b>/<b>R</b> : tourner le plateau &nbsp;&middot;&nbsp; <b>&#9974;</b>/<b>F</b> : plein &eacute;cran<br>
+        <b>Espace</b> : idem que le bouton central &nbsp;&middot;&nbsp; <b>P</b> / <b>&Eacute;chap</b> : pause
+      </div>
+      <div class="row">
+        <button id="btnResume" type="button">&#9654; Reprendre</button>
+        <button id="btnRestart" type="button">&#8635; Recommencer</button>
+        <button id="btnReset" type="button">R&eacute;glages d&eacute;faut</button>
+      </div>
+      <small>Les r&eacute;glages s'appliquent en direct et sont m&eacute;moris&eacute;s.</small>
     </div>
-    <div id="aiRow">
-      <label>Difficult&eacute; de l'IA <span id="vAi"></span></label>
-      <input type="range" id="sAi" min="20" max="90" value="46">
-    </div>
-    <label>Lift — puissance <span id="vLift"></span></label>
-    <input type="range" id="sLift" min="0" max="100" value="45">
-    <label>Lift — dur&eacute;e <span id="vDecay"></span></label>
-    <input type="range" id="sDecay" min="0" max="100" value="67">
-    <label>Vitesse de la balle <span id="vSpeed"></span></label>
-    <input type="range" id="sSpeed" min="30" max="120" value="55">
-    <label>Orientation du plateau</label>
-    <div id="orientRow">
-      <button type="button" data-orient="auto">Auto</button>
-      <button type="button" data-orient="force">Paysage forc&eacute;</button>
-      <button type="button" data-orient="never">Jamais</button>
-    </div>
-    <div id="keysInfo">
-      <b>Souris</b> ou <b>&uarr;/&darr;</b> ou <b>W/S</b> : raquette<br>
-      <b>Tactile</b> : glisse n'importe o&ugrave; &mdash; moiti&eacute; gauche = joueur 1, moiti&eacute; droite = joueur 2<br>
-      <b>Tap au centre du plateau</b> : lancer, pause, reprise ou mise en jeu<br>
-      <b>&#9776;</b> : ce menu (r&eacute;glages) &nbsp;&middot;&nbsp; <b>Espace</b> : idem que le bouton central<br>
-      <b>&#10226;</b> ou <b>R</b> : tourner le plateau &nbsp;&middot;&nbsp; <b>&#9974;</b> ou <b>F</b> : plein &eacute;cran
-    </div>
-    <div class="row">
-      <button id="btnResume" type="button">&#9654; Reprendre</button>
-      <button id="btnRestart" type="button">&#8635; Recommencer</button>
-      <button id="btnReset" type="button">R&eacute;glages d&eacute;faut</button>
-    </div>
-    <small>Les r&eacute;glages s'appliquent en direct et sont m&eacute;moris&eacute;s.</small>
   </div>
 </div>
 <script>
@@ -209,7 +215,7 @@
   try {
     const saved = JSON.parse(localStorage.getItem('pong-settings'));
     if (saved) cfg = Object.assign(cfg, saved);
-    if (!['auto', 'force', 'never'].includes(cfg.orient)) cfg.orient = 'auto';
+    if (!['auto', 'rot1', 'rot2', 'never'].includes(cfg.orient)) cfg.orient = 'auto';
     cfg.twoPlayer = !!cfg.twoPlayer;
   } catch (e) {}
   function liftCap() { return cfg.lift * 0.14; }
@@ -223,7 +229,7 @@
   let score1 = 0, score2 = 0;
   let upcomingServer = 'p1';
   let goalStart = 0;
-  let rotated = false;
+  let rotated = 0;
 
   const p1 = { x: PADDLE_MARGIN, y: H / 2 - PADDLE_H / 2, vy: 0 };
   const p2 = { x: W - PADDLE_MARGIN - PADDLE_W, y: H / 2 - PADDLE_H / 2, vy: 0 };
@@ -312,7 +318,7 @@
     if (menuOpen()) resume(); else openMenu();
   });
   document.getElementById('rotBtn').addEventListener('click', () => {
-    cfg.orient = rotated ? 'never' : 'force';
+    cfg.orient = (rotated === 0) ? 'rot1' : (rotated === 1 ? 'rot2' : 'never');
     syncSliders();
     fitScreen();
   });
@@ -336,6 +342,7 @@
   });
   if (!fsSupported()) fsBtn.style.display = 'none';
   fsLabel();
+
   btnResume.addEventListener('click', () => { if (state === 'paused') resume(); else startGame(); });
   document.getElementById('btnRestart').addEventListener('click', startGame);
   document.getElementById('btnReset').addEventListener('click', () => {
@@ -400,27 +407,30 @@
 
   function fitScreen() {
     const iw = window.innerWidth, ih = window.innerHeight;
-    const portrait = ih > iw;
-    const doRotate = (cfg.orient === 'force') || (cfg.orient === 'auto' && portrait);
-    if (doRotate) {
+    let mode = cfg.orient;
+    if (mode === 'auto') mode = (ih > iw) ? 'rot1' : 'none';
+    if (mode === 'rot1' || mode === 'rot2') {
+      const sign = (mode === 'rot1') ? 1 : -1;
       const iwL = Math.min(iw, ih), ihL = Math.max(iw, ih);
       const ch = Math.min(iwL - 12, (ihL - 12) * (480 / 800), 480);
       const cw = ch * (800 / 480);
       canvas.style.width = cw + 'px';
       canvas.style.height = ch + 'px';
+      rotated = sign;
       const Hw = ch + 4;
       const Ww = cw + 4;
-      rotated = true;
       wrap.style.justifyContent = 'flex-start';
       wrap.style.alignItems = 'flex-start';
       wrap.style.transformOrigin = 'top left';
-      wrap.style.transform = `translate(${(iw - Hw) / 2}px, ${(ih + Ww) / 2}px) rotate(-90deg)`;
+      wrap.style.transform = (sign === 1)
+        ? `translate(${(iw + Hw) / 2}px, ${(ih - Ww) / 2}px) rotate(90deg)`
+        : `translate(${(iw - Hw) / 2}px, ${(ih + Ww) / 2}px) rotate(-90deg)`;
     } else {
-      rotated = false;
+      rotated = 0;
       wrap.style.transform = '';
       wrap.style.justifyContent = '';
       wrap.style.alignItems = '';
-      if (portrait) {
+      if (ih > iw) {
         const ch = Math.max(120, (ih - 20) * 0.25);
         canvas.style.width = (ch * (800 / 480)) + 'px';
         canvas.style.height = ch + 'px';
@@ -429,7 +439,7 @@
         canvas.style.height = '';
       }
     }
-    document.body.classList.toggle('rotated', rotated);
+    document.body.classList.toggle('rotated', rotated !== 0);
   }
   window.addEventListener('resize', fitScreen);
   window.addEventListener('orientationchange', fitScreen);
@@ -444,11 +454,7 @@
     }
     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
     if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-      if (e.key === 'r' || e.key === 'R') {
-        cfg.orient = rotated ? 'never' : 'force';
-        syncSliders();
-        fitScreen();
-      }
+      if (e.key === 'r' || e.key === 'R') document.getElementById('rotBtn').click();
       if (e.key === 'f' || e.key === 'F') fsBtn.click();
     }
   });
@@ -457,12 +463,14 @@
   function paddleYFromScreen(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     let t;
-    if (rotated) t = (clientX - rect.left) / rect.width;
+    if (rotated === 1) t = 1 - (clientX - rect.left) / rect.width;
+    else if (rotated === -1) t = (clientX - rect.left) / rect.width;
     else t = (clientY - rect.top) / rect.height;
     return Math.max(0, Math.min(H, t * H));
   }
   function zoneOf(clientX, clientY) {
-    if (rotated) return clientY >= window.innerHeight / 2 ? 'p1' : 'p2';
+    if (rotated === 1) return clientY < window.innerHeight / 2 ? 'p1' : 'p2';
+    if (rotated === -1) return clientY >= window.innerHeight / 2 ? 'p1' : 'p2';
     return clientX <= window.innerWidth / 2 ? 'p1' : 'p2';
   }
   function setTouchPaddle(clientX, clientY) {
@@ -485,13 +493,13 @@
     const scale = rotated ? (rect.width / H) : (rect.width / W);
     return Math.hypot(clientX - cx, clientY - cy) <= MENU_CIRCLE_R * scale;
   }
-  function onMenuBtn(e) {
-    return !!(e.target && e.target.closest && e.target.closest('#side'));
+  function onSideButtons(e) {
+    return !!(e.target && e.target.closest && e.target.closest('#sideL, #sideR'));
   }
 
   let tapPending = null;
   window.addEventListener('touchstart', (e) => {
-    if (onMenuBtn(e)) return;
+    if (onSideButtons(e)) return;
     if (menuOpen()) return;
     e.preventDefault();
     if (e.touches.length === 1 && inMenuCircle(e.touches[0].clientX, e.touches[0].clientY)) {
@@ -505,14 +513,14 @@
     }
   }, { passive: false });
   window.addEventListener('touchmove', (e) => {
-    if (onMenuBtn(e)) return;
+    if (onSideButtons(e)) return;
     if (menuOpen()) return;
     e.preventDefault();
     tapPending = null;
     for (const t of e.touches) setTouchPaddle(t.clientX, t.clientY);
   }, { passive: false });
   window.addEventListener('touchend', (e) => {
-    if (onMenuBtn(e)) return;
+    if (onSideButtons(e)) return;
     if (menuOpen()) return;
     if (tapPending && e.changedTouches.length === 1) {
       const t = e.changedTouches[0];
@@ -563,7 +571,6 @@
       ball.vy *= speed / sp;
     }
 
-    // L'effet entrant de la balle se combine a celui imprime par la raquette
     ball.lift = Math.max(-liftCap(), Math.min(liftCap(), pvy * liftGain() + ball.lift * 0.35));
   }
 
