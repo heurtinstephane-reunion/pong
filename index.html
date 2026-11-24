@@ -163,9 +163,9 @@
     <label>Vitesse de la balle <span id="vSpeed"></span></label>
     <input type="range" id="sSpeed" min="30" max="120" value="55">
     <div id="keysInfo">
-      <b>Tactile</b> : glisse dans ta moiti&eacute; (bas = joueur 1, haut = joueur 2). Bouge la raquette &agrave; droite, &agrave; gauche et vers l'avant (un tiers de ta zone) pour doser l'effet lift&eacute;<br>
+      <b>Tactile</b> : glisse dans ta moiti&eacute; (bas = joueur 1, haut = joueur 2)<br>
       <b>Souris</b> : m&ecirc;me principe, par moiti&eacute; d'&eacute;cran<br>
-      <b>Clavier</b> : <b>&#8592;/&#8594;</b> (ou <b>Q/D</b>) et <b>&uarr;/&darr;</b> (ou <b>Z/S</b>) joueur 1 &nbsp;&middot;&nbsp; <b>&#8592;/&#8594; + &uarr;/&darr;</b> joueur 2<br>
+      <b>Clavier</b> : <b>&#8592;/&#8594;</b> (ou <b>Q/D</b>) &middot; fl&egrave;ches = joueur 2 en mode 2 joueurs<br>
       <b>Tap au centre</b> : lancer, pause, reprise, mise en jeu &nbsp;&middot;&nbsp; <b>Espace</b> : idem<br>
       <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>P</b>/<b>&Eacute;chap</b> : pause &nbsp;&middot;&nbsp; <b>F</b> : plein &eacute;cran
     </div>
@@ -188,7 +188,6 @@
   const btnResume = document.getElementById('btnResume');
 
   const PADDLE_T = 12, PADDLE_LEN = 90, PADDLE_MARGIN = 24;
-  const FORWARD_ZONE = (H / 2) / 3;
   const BALL_SIZE = 12;
   const WIN_SCORE = 7;
   const MENU_CIRCLE_R = 52;
@@ -215,17 +214,18 @@
   let score1 = 0, score2 = 0;
   let upcomingServer = 'p1';
   let goalScorer = null;
+  let aiErr = 0;
   let goalStart = 0;
   let ballHeld = false;
   let heldServer = 'p1';
 
-  const p1 = { x: W / 2 - PADDLE_LEN / 2, y: H - PADDLE_MARGIN - PADDLE_T, vx: 0, vy: 0 };
-  const p2 = { x: W / 2 - PADDLE_LEN / 2, y: PADDLE_MARGIN, vx: 0, vy: 0 };
+  const p1 = { x: W / 2 - PADDLE_LEN / 2, y: H - PADDLE_MARGIN - PADDLE_T, vx: 0 };
+  const p2 = { x: W / 2 - PADDLE_LEN / 2, y: PADDLE_MARGIN, vx: 0 };
   const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, prevY: H / 2, lift: 0 };
   const trail = [];
 
   const keys = {};
-  let touchX1 = null, touchX2 = null, touchY1 = null, touchY2 = null;
+  let touchX1 = null, touchX2 = null;
 
   let audioCtx = null;
   function ensureAudio() {
@@ -288,7 +288,7 @@
     ball.lift = 0;
     trail.length = 0;
     p1.vx = 0; p2.vx = 0;
-    p1.vy = 0; p2.vy = 0;
+    aiErr = (Math.random() * 2 - 1) * (100 - cfg.ai) * 1.2;
     if (server === 'p1') {
       ball.x = p1.x + PADDLE_LEN / 2;
       ball.y = p1.y - BALL_SIZE / 2 - 2;
@@ -372,7 +372,6 @@
     b.addEventListener('click', () => {
       cfg.twoPlayer = (b.dataset.mode === '2');
       touchX2 = null;
-      touchY2 = null;
       syncSliders();
     });
   });
@@ -441,10 +440,9 @@
   function setTouchPaddle(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const x = Math.max(0, Math.min(W, ((clientX - rect.left) / rect.width) * W));
-    const y = Math.max(0, Math.min(H, ((clientY - rect.top) / rect.height) * H));
     const side = zoneOf(clientY);
-    if (side === 'p1') { touchX1 = x; touchY1 = y; }
-    else if (cfg.twoPlayer) { touchX2 = x; touchY2 = y; }
+    if (side === 'p1') touchX1 = x;
+    else if (cfg.twoPlayer) touchX2 = x;
   }
 
   canvas.addEventListener('mousemove', (e) => setTouchPaddle(e.clientX, e.clientY));
@@ -528,10 +526,11 @@
     const speed = Math.min(maxSpeed(), Math.hypot(ball.vx, ball.vy) + 0.4);
     const angle = clamped * (Math.PI / 3) * 0.75;
     const pvx = Math.max(-14, Math.min(14, p.vx || 0));
-    const pvy = Math.max(-14, Math.min(14, p.vy || 0));
 
-    ball.vy = Math.cos(angle) * speed * dir + Math.max(-2.5, Math.min(2.5, pvy * dir * 0.25)) * dir;
+    ball.vy = Math.cos(angle) * speed * dir;
     ball.vx = Math.sin(angle) * speed + Math.max(-2.5, Math.min(2.5, pvx * 0.25));
+
+    aiErr = (Math.random() * 2 - 1) * (100 - cfg.ai) * 1.2;
 
     const sp = Math.hypot(ball.vx, ball.vy);
     if (sp > speed) {
@@ -552,9 +551,8 @@
     }
     if (state !== 'playing') return;
 
-    // Joueur 1 (bas) — se deplace aussi vers l'avant sur un tiers de sa zone
-    const x1 = p1.x, y1 = p1.y;
-    const y1Base = H - PADDLE_MARGIN - PADDLE_T;
+    // Joueur 1 (bas) — deplacement horizontal uniquement
+    const x1 = p1.x;
     if (touchX1 !== null) {
       const target = touchX1 - PADDLE_LEN / 2;
       p1.x += (target - p1.x) * 0.25;
@@ -562,22 +560,14 @@
     if (!cfg.twoPlayer) {
       if (keys['ArrowLeft']) p1.x -= 8;
       if (keys['ArrowRight']) p1.x += 8;
-      if (keys['ArrowUp']) p1.y -= 8;
-      if (keys['ArrowDown']) p1.y += 8;
     }
     if (keys['q'] || keys['Q'] || keys['a'] || keys['A']) p1.x -= 8;
     if (keys['d'] || keys['D']) p1.x += 8;
-    if (keys['z'] || keys['Z'] || keys['w'] || keys['W']) p1.y -= 8;
-    if (keys['s'] || keys['S']) p1.y += 8;
-    if (touchY1 !== null) p1.y += (Math.max(y1Base - FORWARD_ZONE, Math.min(y1Base, touchY1)) - p1.y) * 0.25;
     p1.x = Math.max(0, Math.min(W - PADDLE_LEN, p1.x));
-    p1.y = Math.max(y1Base - FORWARD_ZONE, Math.min(y1Base, p1.y));
     p1.vx = p1.x - x1;
-    p1.vy = p1.y - y1;
 
     // Joueur 2 (haut) ou IA
-    const x2 = p2.x, y2 = p2.y;
-    const y2Base = PADDLE_MARGIN;
+    const x2 = p2.x;
     if (cfg.twoPlayer) {
       if (touchX2 !== null) {
         const target = touchX2 - PADDLE_LEN / 2;
@@ -585,24 +575,26 @@
       }
       if (keys['ArrowLeft']) p2.x -= 8;
       if (keys['ArrowRight']) p2.x += 8;
-      if (keys['ArrowUp']) p2.y -= 8;
-      if (keys['ArrowDown']) p2.y += 8;
-      if (touchY2 !== null) p2.y += (Math.max(y2Base, Math.min(y2Base + FORWARD_ZONE, touchY2)) - p2.y) * 0.25;
       p2.x = Math.max(0, Math.min(W - PADDLE_LEN, p2.x));
-      p2.y = Math.max(y2Base, Math.min(y2Base + FORWARD_ZONE, p2.y));
       p2.vx = p2.x - x2;
-      p2.vy = p2.y - y2;
     } else {
+      // IA : anticipe le point d'arrivee de la balle (avec rebonds sur les parois)
+      // plus une erreur proportionnelle a la difficulte choisie
       const spd = aiSpeed();
       const center = p2.x + PADDLE_LEN / 2;
-      if (ball.vy < 0) {
-        if (ball.x > center + 10) p2.x += spd;
-        else if (ball.x < center - 10) p2.x -= spd;
+      let target;
+      if (ball.vy < 0 && !ballHeld) {
+        const plane = p2.y + PADDLE_T + BALL_SIZE / 2;
+        const time = Math.max(0, (ball.y - plane) / -ball.vy);
+        let pred = ball.x + (ball.vx + ball.lift) * time;
+        pred = ((pred % (2 * W)) + 2 * W) % (2 * W);
+        if (pred > W) pred = 2 * W - pred;
+        target = pred + aiErr;
       } else {
-        const midX = W / 2;
-        if (midX > center + 10) p2.x += spd * 0.25;
-        else if (midX < center - 10) p2.x -= spd * 0.25;
+        target = W / 2;
       }
+      if (target > center + 6) p2.x += Math.min(spd, target - center);
+      else if (target < center - 6) p2.x -= Math.min(spd, center - target);
       p2.x = Math.max(0, Math.min(W - PADDLE_LEN, p2.x));
       p2.vx = p2.x - x2;
     }
