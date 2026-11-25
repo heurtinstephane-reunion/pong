@@ -299,6 +299,7 @@
   let shield2Until = 0;
   let shield2On = false;
   let wide2On = false;
+  let wideLayout = false;
   function wide2Active() { return wide2On || performance.now() < wide2Until; }
 
   const keys = {};
@@ -606,7 +607,8 @@
     } catch (e) {}
   });
   function fsLabel() {
-    fsBtn.innerHTML = isFs() ? '&#9974;<span class="lbl"> Quitter plein &eacute;cran</span>' : '&#9974;<span class="lbl"> Plein &eacute;cran</span>';
+    fsBtn.innerHTML = '&#9974;' + (isFs() ? '<span class="lbl"> Quitter</span>' : '<span class="lbl"> Plein &eacute;cran</span>');
+    fsBtn.title = isFs() ? 'Quitter plein \u00e9cran (F)' : 'Plein \u00e9cran (F)';
   }
   ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => {
     document.addEventListener(ev, () => { fsLabel(); fitScreen(); });
@@ -726,7 +728,6 @@
   });
   syncSliders();
 
-  let wideLayout = false;
   function fitScreen() {
     const iw = window.innerWidth, ih = window.innerHeight;
     wideLayout = iw >= (ih - 90) * (480 / 800) + 110;

@@ -12,8 +12,9 @@ Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 - **Clavier** : flèches **← / →** ou **Q / D** (aussi **A / D**) pour la raquette du bas.
 - **Bouton central du plateau** : lance la partie, met en pause (message « Pause »), reprend (les deux barres deviennent un triangle ▶) et effectue chaque remise en jeu (la balle reste collée à la raquette du serveur — celui qui vient d'encaisser sert). Il ne réagit qu'aux tapotements, pas aux glissés.
 - **Remise en jeu rapide** : le serveur peut aussi lancer la balle d'un simple tapotement dans sa propre zone.
-- **Menu** : bouton « ☰ Menu » en bas à gauche, **P** ou **Échap**.
-- **Plein écran** : bouton « ⛶ » en bas à droite, ou touche **F**.
+- **Menu** : bouton « ☰ » en bas à gauche, **P** ou **Échap**.
+- **Plein écran** et **Musique** : boutons minimalistes ♪ et ⛶ en bas à droite (icônes seules sur smartphone), ou touches **F** et **M**.
+- **Boutons d'action par joueur** : chaque joueur a sa propre rangée d'actions (💣 bombe, ✳ double, 🛡 bouclier, ↔ raquette XL) — en colonnes de part et d'autre du plateau sur ordinateur, en bandeaux sous le plateau pour le joueur 1 et au-dessus pour le joueur 2 en smartphone (rangée du haut visible uniquement en mode 2 joueurs ; l'IA utilise ses codes toute seule en solo).
 - Le menu, affiché verticalement, contient des réglages en direct : mode (1 joueur IA / 2 joueurs), effet (lift), durée de l'effet, vitesse de la balle, difficulté de l'IA — mémorisés localement. L'IA anticipe la trajectoire de la balle (avec rebonds sur les parois) avec une marge d'erreur qui diminue quand la difficulté augmente.
 - **Couleurs des raquettes** : chaque joueur choisit sa couleur (rouge, bleu, jaune, vert ou orange).
 - **Contrôles dominants (solo)** : choisis entre la souris et le clavier (flèches) — en mode clavier, la souris ne déplace plus la raquette.
@@ -22,7 +23,7 @@ Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 - Premier à **7 points** gagne ; après chaque point, courte animation « GOAL! » horizontale affichée dans la zone de celui qui a marqué, accompagnée d'un petit son, puis remise en jeu.
 - **Mise en jeu au clavier** : **↑** sert pour le joueur 1, **↓** pour le joueur 2/IA (pendant l'attente).
 - **Musique** : petite musique de fond pendant la partie, bouton **♪ Musique** en bas à droite ou touche **M** pour couper/remettre.
-- **Codes triche** (pendant la partie) : **B** transforme la balle en bombe à retardement qui explose au contact de la prochaine raquette (détruite pour un point, restaurée au point suivant, avec bruit d'explosion) ; **S** arme un bouclier anti-bombe (halo bleu autour de la raquette — la prochaine bombe est absorbée et déviée au lieu de détruire) ; **G** passe la raquette du joueur 1 en pleine largeur (invincible, rappuyer pour annuler) ; **X** dédouble la balle dans des directions aléatoires (rappuyer pour x4, etc.). Sur smartphone, quatre icônes (au-dessus de la rangée Menu/Musique/Plein écran) font la même chose : 💣 bombe, ✳ double, 🛡 bouclier, ↔ raquette XL (bouclier et XL cachés en mode 2 joueurs).
+- **Codes triche** (pendant la partie) : **B** transforme la balle en bombe à retardement qui explose au contact de la prochaine raquette (détruite pour un point, restaurée au point suivant, avec bruit d'explosion) ; **S** arme un bouclier anti-bombe (halo bleu autour de la raquette — la prochaine bombe est absorbée et déviée au lieu de détruire) ; **G** passe la raquette du joueur 1 en pleine largeur (invincible, rappuyer pour annuler) ; **X** dédouble la balle dans des directions aléatoires (rappuyer pour x4, etc.). En mode 2 joueurs, le joueur 2 a ses propres touches : **K** bouclier, **L** raquette XL — la bombe et le double sont partagés via les boutons de chaque camp.
 - **L'IA triche aussi** : selon la difficulté, elle peut armer une bombe, doubler la balle, activer son bouclier anti-bombe ou sa raquette XL (6 s) — plus la difficulté est haute, plus souvent et plus malignement.
 - Sur smartphone, le glisser vers le bas ne recharge plus la page (comportement tactile désactivé pendant le jeu).
 
