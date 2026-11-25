@@ -15,6 +15,8 @@ Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 - **Menu** : bouton « ☰ Menu » en bas à gauche, **P** ou **Échap**.
 - **Plein écran** : bouton « ⛶ » en bas à droite, ou touche **F**.
 - Le menu, affiché verticalement, contient des réglages en direct : mode (1 joueur IA / 2 joueurs), effet (lift), durée de l'effet, vitesse de la balle, difficulté de l'IA — mémorisés localement. L'IA anticipe la trajectoire de la balle (avec rebonds sur les parois) avec une marge d'erreur qui diminue quand la difficulté augmente.
+- **Couleurs des raquettes** : chaque joueur choisit sa couleur (rouge, bleu, jaune, vert ou orange).
+- **Contrôles dominants (solo)** : choisis entre la souris et le clavier (flèches) — en mode clavier, la souris ne déplace plus la raquette.
 - **Effet (lift)** : si la raquette bouge au moment du contact, la balle part en courbe à la manière du tennis (balle orangée + traînée). Les parois latérales transfèrent une partie de l'effet.
 - Le **score** s'affiche en grand et en miroir dans chaque zone : score du joueur 2 en haut, score du joueur 1 en bas. En mode 2 joueurs, le score d'en haut est affiché à l'envers pour être lisible par le joueur 2.
 - Premier à **7 points** gagne ; après chaque point, courte animation « GOAL! » horizontale affichée dans la zone de celui qui a marqué, accompagnée d'un petit son, puis remise en jeu.
