@@ -142,6 +142,7 @@
 <div id="wrap"><canvas id="game" width="480" height="800"></canvas></div>
 <div id="sideL"><button id="menuBtn" type="button">&#9776; Menu</button></div>
 <div id="sideR">
+  <button id="musicBtn" type="button">&#9834; Musique</button>
   <button id="fsBtn" type="button">&#9974; Plein &eacute;cran</button>
 </div>
 <div id="menu" class="hidden">
@@ -178,7 +179,9 @@
       <b>Souris</b> : m&ecirc;me principe, par moitié d'&eacute;cran — en solo, choisis ci-dessus entre souris et flèches<br>
       <b>Clavier</b> : <b>&#8592;/&#8594;</b> (ou <b>Q/D</b>) &middot; fl&egrave;ches = joueur 2 en mode 2 joueurs<br>
       <b>Tap au centre</b> : lancer, pause, reprise, mise en jeu &nbsp;&middot;&nbsp; <b>Espace</b> : idem<br>
-      <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>P</b>/<b>&Eacute;chap</b> : pause &nbsp;&middot;&nbsp; <b>F</b> : plein &eacute;cran
+      <b>&uarr;</b> : mise en jeu joueur 1 &nbsp;&middot;&nbsp; <b>&darr;</b> : mise en jeu joueur 2/IA (pendant l'attente)<br>
+      <b>Musique</b> : <b>M</b> ou bouton &#9834; en bas &agrave; droite<br>
+      <b>Codes</b> : <b>B</b> bombe &middot; <b>G</b> raquette XL invincible &middot; <b>X</b> balle en double (encore X = x4)&nbsp;&middot; <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>P</b>/<b>&Eacute;chap</b> : pause &nbsp;&middot;&nbsp; <b>F</b> : plein &eacute;cran
     </div>
     <div class="row">
       <button id="btnResume" type="button">&#9654; Reprendre</button>
@@ -210,7 +213,7 @@
   const PADDLE_COLORS = { red: '#ef5350', blue: '#42a5f5', yellow: '#ffdf3b', green: '#66bb6a', orange: '#ffa726' };
   const PADDLE_COLOR_NAMES = { red: 'Rouge', blue: 'Bleu', yellow: 'Jaune', green: 'Vert', orange: 'Orange' };
 
-  const DEFAULTS = { lift: 45, decay: 67, speed: 55, ai: 46, twoPlayer: false, color1: 'green', color2: 'red', controls: 'mouse' };
+  const DEFAULTS = { lift: 45, decay: 67, speed: 55, ai: 46, twoPlayer: false, color1: 'green', color2: 'red', controls: 'mouse', mute: false };
   let cfg = Object.assign({}, DEFAULTS);
   try {
     const saved = JSON.parse(localStorage.getItem('pong-settings'));
@@ -220,6 +223,7 @@
   cfg.color1 = PADDLE_COLORS[cfg.color1] ? cfg.color1 : 'green';
   cfg.color2 = PADDLE_COLORS[cfg.color2] ? cfg.color2 : 'red';
   cfg.controls = (cfg.controls === 'keyboard') ? 'keyboard' : 'mouse';
+  cfg.mute = !!cfg.mute;
   function liftCap() { return cfg.lift * 0.14; }
   function liftGain() { return cfg.lift * 0.14 / 24; }
   function liftDecay() { return 0.85 + (cfg.decay / 100) * 0.12; }
@@ -238,8 +242,13 @@
 
   const p1 = { x: W / 2 - PADDLE_LEN / 2, y: H - PADDLE_MARGIN - PADDLE_T, vx: 0 };
   const p2 = { x: W / 2 - PADDLE_LEN / 2, y: PADDLE_MARGIN, vx: 0 };
-  const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, prevY: H / 2, lift: 0 };
-  const trail = [];
+  const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, prevY: H / 2, lift: 0, trail: [] };
+  const balls = [ball];
+  const boomed = [];
+  let bombArmed = false;
+  let destroyedPaddle = null;
+  let bombSkip = false;
+  let wideP1 = false;
 
   const keys = {};
   let touchX1 = null, touchX2 = null;
@@ -277,6 +286,108 @@
   }
   window.addEventListener('pointerdown', ensureAudio);
 
+  function toggleBomb() {
+    if (state !== 'playing' || ballHeld) return;
+    bombArmed = !bombArmed;
+  }
+  function toggleWide() {
+    if (state !== 'playing') return;
+    wideP1 = !wideP1;
+    if (wideP1) { p1.x = 0; touchX1 = null; }
+  }
+  function splitBalls() {
+    if (state !== 'playing' || ballHeld || balls.length >= 8) return;
+    const clones = [];
+    for (const b of balls) {
+      const sp = Math.hypot(b.vx, b.vy);
+      const a0 = Math.atan2(b.vy, b.vx);
+      const da = (15 + Math.random() * 50) * (Math.PI / 180) * (Math.random() < 0.5 ? 1 : -1);
+      const a = a0 + da;
+      clones.push({ x: b.x, y: b.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, prevY: b.y, lift: 0, trail: [] });
+    }
+    balls.push(...clones);
+  }
+  function spawnBoom(x, y) {
+    for (let i = 0; i < 28; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 2 + Math.random() * 6;
+      boomed.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1 });
+    }
+  }
+  function explosionSound() {
+    if (!audioCtx) return;
+    try {
+      const t0 = audioCtx.currentTime;
+      const dur = 0.45;
+      const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const gNoise = audioCtx.createGain();
+      gNoise.gain.setValueAtTime(0.5, t0);
+      gNoise.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      const osc = audioCtx.createOscillator();
+      const gOsc = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, t0);
+      osc.frequency.exponentialRampToValueAtTime(30, t0 + dur);
+      gOsc.gain.setValueAtTime(0.4, t0);
+      gOsc.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      src.connect(gNoise); gNoise.connect(audioCtx.destination);
+      osc.connect(gOsc); gOsc.connect(audioCtx.destination);
+      src.start(t0);
+      osc.start(t0); osc.stop(t0 + dur);
+    } catch (e) {}
+  }
+
+  let musicTimer = null;
+  let musicStep = 0;
+  const MELODY = [523, 659, 784, 659, 587, 659, 784, 880];
+  const BASSLINE = [131, 131, 165, 165, 147, 147, 110, 110];
+  function musicShouldPlay() { return state === 'playing' && !cfg.mute; }
+  function musicTick() {
+    if (!audioCtx || !musicShouldPlay()) return;
+    try {
+      const t0 = audioCtx.currentTime;
+      const mk = (f, type, vol, dur) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = type;
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(vol, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start(t0);
+        o.stop(t0 + dur);
+      };
+      mk(MELODY[musicStep % MELODY.length], 'triangle', 0.06, 0.15);
+      if (musicStep % 2 === 0) mk(BASSLINE[(musicStep / 2) % BASSLINE.length], 'square', 0.045, 0.17);
+      musicStep++;
+    } catch (e) {}
+  }
+  function updateMusic() {
+    if (musicShouldPlay() && audioCtx && musicTimer === null) {
+      musicStep = 0;
+      musicTimer = setInterval(musicTick, 170);
+    } else if (!musicShouldPlay() && musicTimer !== null) {
+      clearInterval(musicTimer);
+      musicTimer = null;
+    }
+  }
+  function setMuted(v) {
+    cfg.mute = v;
+    try { localStorage.setItem('pong-settings', JSON.stringify(cfg)); } catch (e) {}
+    updateMusic();
+    musicBtn.textContent = v ? '\u266A coupé' : '\u266A Musique';
+  }
+  function toggleMute() {
+    ensureAudio();
+    setMuted(!cfg.mute);
+  }
+
   function showMenu(on) {
     menu.classList.toggle('hidden', !on);
     if (on) {
@@ -303,7 +414,9 @@
   function placeBall(server) {
     heldServer = server;
     ball.lift = 0;
-    trail.length = 0;
+    ball.trail.length = 0;
+    balls.length = 0;
+    balls.push(ball);
     p1.vx = 0; p2.vx = 0;
     aiErr = (Math.random() * 2 - 1) * (100 - cfg.ai) * 1.2;
     if (server === 'p1') {
@@ -317,6 +430,7 @@
     ball.vy = 0;
     ball.prevY = ball.y;
     ballHeld = true;
+    bombArmed = false;
     state = 'playing';
     showMenu(false);
   }
@@ -325,7 +439,7 @@
     ball.vy = (heldServer === 'p1') ? -baseSpeed() : baseSpeed();
     ball.prevY = ball.y;
     ballHeld = false;
-    trail.length = 0;
+    ball.trail.length = 0;
   }
 
   function centerAction() {
@@ -341,6 +455,11 @@
   function startGame() {
     score1 = 0;
     score2 = 0;
+    bombArmed = false;
+    destroyedPaddle = null;
+    bombSkip = false;
+    wideP1 = false;
+    boomed.length = 0;
     placeBall(Math.random() < 0.5 ? 'p1' : 'p2');
   }
 
@@ -351,6 +470,9 @@
     goalStart = performance.now();
     state = 'goal';
     pointSound(winner);
+    bombArmed = false;
+    if (bombSkip) bombSkip = false;
+    else destroyedPaddle = null;
     showMenu(false);
   }
 
@@ -377,6 +499,10 @@
   });
   if (!fsSupported()) fsBtn.style.display = 'none';
   fsLabel();
+
+  const musicBtn = document.getElementById('musicBtn');
+  musicBtn.addEventListener('click', toggleMute);
+  setMuted(cfg.mute);
 
   btnResume.addEventListener('click', () => { if (state === 'paused') resume(); else startGame(); });
   document.getElementById('btnRestart').addEventListener('click', startGame);
@@ -485,6 +611,14 @@
     }
     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
     if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'f' || e.key === 'F')) fsBtn.click();
+    if (state === 'playing' && ballHeld) {
+      if (e.key === 'ArrowUp' && heldServer === 'p1') launchServe();
+      if (e.key === 'ArrowDown' && heldServer === 'p2') launchServe();
+    }
+    if (e.key === 'b' || e.key === 'B') toggleBomb();
+    if (e.key === 'g' || e.key === 'G') toggleWide();
+    if (e.key === 'x' || e.key === 'X') splitBalls();
+    if (e.key === 'm' || e.key === 'M') toggleMute();
   });
   document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
@@ -565,40 +699,61 @@
     centerAction();
   });
 
-  function collidePaddle(p, topPaddle) {
+  function collidePaddle(p, topPaddle, b) {
+    if (destroyedPaddle === (topPaddle ? 'p2' : 'p1')) return;
+    const len = (!topPaddle && wideP1) ? W : PADDLE_LEN;
     const half = BALL_SIZE / 2;
-    if (ball.x + half < p.x || ball.x - half > p.x + PADDLE_LEN) return;
-    if (ball.y + half < p.y || ball.y - half > p.y + PADDLE_T) return;
+    if (b.x + half < p.x || b.x - half > p.x + len) return;
+    if (b.y + half < p.y || b.y - half > p.y + PADDLE_T) return;
     const midY = p.y + PADDLE_T / 2;
-    const fromFront = topPaddle ? (ball.y >= midY) : (ball.y <= midY);
+    const fromFront = topPaddle ? (b.y >= midY) : (b.y <= midY);
     if (!fromFront) return;
-    ball.x = Math.max(p.x + half + 0.01, Math.min(p.x + PADDLE_LEN - half - 0.01, ball.x));
-    ball.y = topPaddle ? (p.y + PADDLE_T + half) : (p.y - half);
-    hitPaddle(p, topPaddle ? 1 : -1);
+    if (bombArmed) {
+      const side = topPaddle ? 'p2' : 'p1';
+      spawnBoom(b.x, b.y);
+      explosionSound();
+      destroyedPaddle = side;
+      bombSkip = true;
+      bombArmed = false;
+      if (side === 'p1') wideP1 = false;
+      onPointScored(side === 'p1' ? 'p2' : 'p1');
+      return;
+    }
+    b.x = Math.max(p.x + half + 0.01, Math.min(p.x + len - half - 0.01, b.x));
+    b.y = topPaddle ? (p.y + PADDLE_T + half) : (p.y - half);
+    hitPaddle(p, topPaddle ? 1 : -1, b);
   }
 
-  function hitPaddle(p, dir) {
-    const rel = ((ball.x - (p.x + PADDLE_LEN / 2)) / (PADDLE_LEN / 2));
+  function hitPaddle(p, dir, b) {
+    const rel = ((b.x - (p.x + PADDLE_LEN / 2)) / (PADDLE_LEN / 2));
     const clamped = Math.max(-1, Math.min(1, rel));
-    const speed = Math.min(maxSpeed(), Math.hypot(ball.vx, ball.vy) + 0.4);
+    const speed = Math.min(maxSpeed(), Math.hypot(b.vx, b.vy) + 0.4);
     const angle = clamped * (Math.PI / 3) * 0.75;
     const pvx = Math.max(-14, Math.min(14, p.vx || 0));
 
-    ball.vy = Math.cos(angle) * speed * dir;
-    ball.vx = Math.sin(angle) * speed + Math.max(-2.5, Math.min(2.5, pvx * 0.25));
+    b.vy = Math.cos(angle) * speed * dir;
+    b.vx = Math.sin(angle) * speed + Math.max(-2.5, Math.min(2.5, pvx * 0.25));
 
     aiErr = (Math.random() * 2 - 1) * (100 - cfg.ai) * 1.2;
 
-    const sp = Math.hypot(ball.vx, ball.vy);
+    const sp = Math.hypot(b.vx, b.vy);
     if (sp > speed) {
-      ball.vx *= speed / sp;
-      ball.vy *= speed / sp;
+      b.vx *= speed / sp;
+      b.vy *= speed / sp;
     }
 
-    ball.lift = Math.max(-liftCap(), Math.min(liftCap(), pvx * liftGain() + ball.lift * 0.35));
+    b.lift = Math.max(-liftCap(), Math.min(liftCap(), pvx * liftGain() + b.lift * 0.35));
   }
 
   function update() {
+    for (let i = boomed.length - 1; i >= 0; i--) {
+      const q = boomed[i];
+      q.life -= 0.03;
+      if (q.life <= 0) { boomed.splice(i, 1); continue; }
+      q.x += q.vx; q.y += q.vy; q.vy += 0.08;
+    }
+    updateMusic();
+
     if (state === 'goal') {
       if (performance.now() - goalStart >= GOAL_TOTAL) {
         if (score1 >= WIN_SCORE || score2 >= WIN_SCORE) state = 'over';
@@ -621,7 +776,8 @@
     if (keys['q'] || keys['Q'] || keys['a'] || keys['A']) p1.x -= 8;
     if (keys['d'] || keys['D']) p1.x += 8;
     p1.x = Math.max(0, Math.min(W - PADDLE_LEN, p1.x));
-    p1.vx = p1.x - x1;
+    if (wideP1) { p1.x = 0; p1.vx = 0; }
+    p1.vx = wideP1 ? 0 : p1.x - x1;
 
     // Joueur 2 (haut) ou IA
     const x2 = p2.x;
@@ -635,20 +791,26 @@
       p2.x = Math.max(0, Math.min(W - PADDLE_LEN, p2.x));
       p2.vx = p2.x - x2;
     } else {
-      // IA : anticipe le point d'arrivee de la balle (avec rebonds sur les parois)
+      // IA : anticipe le point d'arrivee de la balle la plus proche (avec rebons sur les parois)
       // plus une erreur proportionnelle a la difficulte choisie
       const spd = aiSpeed();
       const center = p2.x + PADDLE_LEN / 2;
-      let target;
-      if (ball.vy < 0 && !ballHeld) {
-        const plane = p2.y + PADDLE_T + BALL_SIZE / 2;
-        const time = Math.max(0, (ball.y - plane) / -ball.vy);
-        let pred = ball.x + (ball.vx + ball.lift) * time;
-        pred = ((pred % (2 * W)) + 2 * W) % (2 * W);
-        if (pred > W) pred = 2 * W - pred;
-        target = pred + aiErr;
-      } else {
-        target = W / 2;
+      const plane = p2.y + PADDLE_T + BALL_SIZE / 2;
+      let target = W / 2;
+      if (!ballHeld) {
+        let bestT = Infinity, tgt = null;
+        for (const b of balls) {
+          if (b.vy < 0) {
+            const time = Math.max(0, (b.y - plane) / -b.vy);
+            if (time < bestT) { bestT = time; tgt = b; }
+          }
+        }
+        if (tgt) {
+          let pred = tgt.x + (tgt.vx + tgt.lift) * bestT;
+          pred = ((pred % (2 * W)) + 2 * W) % (2 * W);
+          if (pred > W) pred = 2 * W - pred;
+          target = pred + aiErr;
+        }
       }
       if (target > center + 6) p2.x += Math.min(spd, target - center);
       else if (target < center - 6) p2.x -= Math.min(spd, center - target);
@@ -666,41 +828,66 @@
         ball.y = p2.y + PADDLE_T + BALL_SIZE / 2 + 2;
       }
       ball.prevY = ball.y;
-      trail.length = 0;
+      ball.trail.length = 0;
       return;
     }
 
-    // Balle : sous-pas pour eviter le tunnelling a haute vitesse
-    const steps = Math.min(14, Math.max(2, Math.ceil(Math.max(Math.abs(ball.vx), Math.abs(ball.vy)) / 5)));
+    // Balle(s) : sous-pas pour eviter le tunnelling a haute vitesse
+    let maxV = 0;
+    for (const b of balls) maxV = Math.max(maxV, Math.abs(b.vx), Math.abs(b.vy));
+    const steps = Math.min(14, Math.max(2, Math.ceil(maxV / 5)));
     const dt = 1 / steps;
-    for (let i = 0; i < steps; i++) {
-      ball.prevY = ball.y;
-      ball.x += (ball.vx + ball.lift) * dt;
-      ball.y += ball.vy * dt;
+    let lastExit = null;
+    for (let i = balls.length - 1; i >= 0; i--) {
+      const b = balls[i];
+      for (let s = 0; s < steps; s++) {
+        b.prevY = b.y;
+        b.x += (b.vx + b.lift) * dt;
+        b.y += b.vy * dt;
 
-      if (ball.x - BALL_SIZE / 2 < 0) {
-        ball.x = BALL_SIZE / 2;
-        ball.vx = -ball.vx;
-        ball.lift = -ball.lift * 0.6;
+        if (b.x - BALL_SIZE / 2 < 0) {
+          b.x = BALL_SIZE / 2;
+          b.vx = -b.vx;
+          b.lift = -b.lift * 0.6;
+        }
+        if (b.x + BALL_SIZE / 2 > W) {
+          b.x = W - BALL_SIZE / 2;
+          b.vx = -b.vx;
+          b.lift = -b.lift * 0.6;
+        }
+
+        collidePaddle(p2, true, b);
+        collidePaddle(p1, false, b);
+
+        if (state === 'goal') break;
+        if (b.y < -BALL_SIZE) {
+          if (balls.length === 1) lastExit = 'p1';
+          balls.splice(i, 1);
+          break;
+        } else if (b.y > H + BALL_SIZE) {
+          if (balls.length === 1) lastExit = 'p2';
+          balls.splice(i, 1);
+          break;
+        }
       }
-      if (ball.x + BALL_SIZE / 2 > W) {
-        ball.x = W - BALL_SIZE / 2;
-        ball.vx = -ball.vx;
-        ball.lift = -ball.lift * 0.6;
-      }
+      if (state === 'goal') break;
+    }
 
-      collidePaddle(p2, true);
-      collidePaddle(p1, false);
-
-      if (ball.y < -BALL_SIZE) { onPointScored('p1'); break; }
-      else if (ball.y > H + BALL_SIZE) { onPointScored('p2'); break; }
+    if (state === 'goal') {
+      balls.length = 0;
+      return;
+    }
+    if (balls.length === 0) {
+      onPointScored(lastExit || 'p2');
+      return;
     }
 
     // L'effet s'estompe, comme un lift de tennis
-    ball.lift *= liftDecay();
-
-    trail.push({ x: ball.x, y: ball.y });
-    if (trail.length > 10) trail.shift();
+    for (const b of balls) {
+      b.lift *= liftDecay();
+      b.trail.push({ x: b.x, y: b.y });
+      if (b.trail.length > 10) b.trail.shift();
+    }
   }
 
   function drawNet() {
@@ -739,13 +926,31 @@
     ctx.fillText(text, W / 2, H / 2 - 130);
   }
 
-  function drawTrail() {
-    for (let i = 0; i < trail.length; i++) {
-      const t = trail[i];
-      const alpha = (i / trail.length) * 0.3;
-      const size = BALL_SIZE * (0.4 + (i / trail.length) * 0.6);
+  function drawTrailFor(b) {
+    for (let i = 0; i < b.trail.length; i++) {
+      const t = b.trail[i];
+      const alpha = (i / b.trail.length) * 0.3;
+      const size = BALL_SIZE * (0.4 + (i / b.trail.length) * 0.6);
       ctx.fillStyle = `rgba(255, 190, 90, ${alpha})`;
       ctx.fillRect(t.x - size / 2, t.y - size / 2, size, size);
+    }
+  }
+
+  function drawBoom() {
+    for (const q of boomed) {
+      ctx.globalAlpha = Math.max(0, q.life);
+      ctx.fillStyle = q.life > 0.5 ? '#ffcf6b' : '#ff7043';
+      ctx.fillRect(q.x - 3, q.y - 3, 6, 6);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawDebris(p) {
+    ctx.fillStyle = 'rgba(150, 160, 190, 0.4)';
+    const y = p.y + 3;
+    for (let i = 0; i < 3; i++) {
+      const fx = p.x + 8 + i * ((W - 16) / 3) + (i % 2 ? 6 : -2);
+      ctx.fillRect(fx, y, 16, PADDLE_T - 6);
     }
   }
 
@@ -805,16 +1010,38 @@
     drawNet();
     drawScore();
 
-    ctx.fillStyle = PADDLE_COLORS[cfg.color1];
-    ctx.fillRect(p1.x, p1.y, PADDLE_LEN, PADDLE_T);
-    ctx.fillStyle = PADDLE_COLORS[cfg.color2];
-    ctx.fillRect(p2.x, p2.y, PADDLE_LEN, PADDLE_T);
+    if (destroyedPaddle === 'p1') {
+      drawDebris(p1);
+    } else {
+      ctx.fillStyle = PADDLE_COLORS[cfg.color1];
+      ctx.fillRect(wideP1 ? 0 : p1.x, p1.y, wideP1 ? W : PADDLE_LEN, PADDLE_T);
+    }
+    if (destroyedPaddle === 'p2') {
+      drawDebris(p2);
+    } else {
+      ctx.fillStyle = PADDLE_COLORS[cfg.color2];
+      ctx.fillRect(p2.x, p2.y, PADDLE_LEN, PADDLE_T);
+    }
 
     if (state === 'playing' || state === 'paused') {
-      drawTrail();
-      ctx.fillStyle = Math.abs(ball.lift) > 0.25 ? '#ffbe5a' : '#e8ecf8';
-      ctx.fillRect(ball.x - BALL_SIZE / 2, ball.y - BALL_SIZE / 2, BALL_SIZE, BALL_SIZE);
+      for (const b of balls) {
+        drawTrailFor(b);
+        if (bombArmed) {
+          const blink = (performance.now() % 300) < 150;
+          ctx.fillStyle = blink ? '#ff4d4d' : '#26262b';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, BALL_SIZE * 0.75, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ff9f43';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = Math.abs(b.lift) > 0.25 ? '#ffbe5a' : '#e8ecf8';
+          ctx.fillRect(b.x - BALL_SIZE / 2, b.y - BALL_SIZE / 2, BALL_SIZE, BALL_SIZE);
+        }
+      }
     }
+    drawBoom();
 
     if (state === 'goal') drawGoal();
     drawCenterButton();

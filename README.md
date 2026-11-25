@@ -20,6 +20,9 @@ Ouvre le jeu ici : https://heurtinstephane-reunion.github.io/pong/
 - **Effet (lift)** : si la raquette bouge au moment du contact, la balle part en courbe à la manière du tennis (balle orangée + traînée). Les parois latérales transfèrent une partie de l'effet.
 - Le **score** s'affiche en grand et en miroir dans chaque zone : score du joueur 2 en haut, score du joueur 1 en bas. En mode 2 joueurs, le score d'en haut est affiché à l'envers pour être lisible par le joueur 2.
 - Premier à **7 points** gagne ; après chaque point, courte animation « GOAL! » horizontale affichée dans la zone de celui qui a marqué, accompagnée d'un petit son, puis remise en jeu.
+- **Mise en jeu au clavier** : **↑** sert pour le joueur 1, **↓** pour le joueur 2/IA (pendant l'attente).
+- **Musique** : petite musique de fond pendant la partie, bouton **♪ Musique** en bas à droite ou touche **M** pour couper/remettre.
+- **Codes triche** (pendant la partie) : **B** transforme la balle en bombe à retardement qui explose au contact de la prochaine raquette (détruite pour un point, restaurée au point suivant, avec bruit d'explosion) ; **G** passe la raquette du joueur 1 en pleine largeur (invincible, rappuyer pour annuler) ; **X** dédouble la balle dans des directions aléatoires (rappuyer pour x4, etc.).
 - Sur smartphone, le glisser vers le bas ne recharge plus la page (comportement tactile désactivé pendant le jeu).
 
 ## En local
