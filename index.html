@@ -174,7 +174,7 @@
 <div id="sideL"><button id="menuBtn" type="button" title="Menu (P / &Eacute;chap)">&#9776;<span class="lbl"> Menu</span></button></div>
 <div id="sideR">
   <button id="musicBtn" type="button" title="Musique (M)">&#9834;</button>
-  <button id="fsBtn" type="button" title="Plein &eacute;cran (F)">&#9974;<span class="lbl"> Plein &eacute;cran</span></button>
+  <button id="fsBtn" type="button" title="Plein &eacute;cran (F)">&#9974;</button>
 </div>
 <div id="acts1" class="acts">
   <button type="button" data-bomb title="Bombe (B)">&#128165;</button>
@@ -284,6 +284,7 @@
   let goalStart = 0;
   let ballHeld = false;
   let heldServer = 'p1';
+  let aiServeAt = 0;
 
   const p1 = { x: W / 2 - PADDLE_LEN / 2, y: H - PADDLE_MARGIN - PADDLE_T, vx: 0 };
   const p2 = { x: W / 2 - PADDLE_LEN / 2, y: PADDLE_MARGIN, vx: 0 };
@@ -521,6 +522,7 @@
 
   function placeBall(server) {
     heldServer = server;
+    aiServeAt = performance.now() + 1200;
     ball.lift = 0;
     ball.trail.length = 0;
     balls.length = 0;
@@ -607,7 +609,7 @@
     } catch (e) {}
   });
   function fsLabel() {
-    fsBtn.innerHTML = '&#9974;' + (isFs() ? '<span class="lbl"> Quitter</span>' : '<span class="lbl"> Plein &eacute;cran</span>');
+    fsBtn.innerHTML = '&#9974;';
     fsBtn.title = isFs() ? 'Quitter plein \u00e9cran (F)' : 'Plein \u00e9cran (F)';
   }
   ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => {
@@ -738,11 +740,16 @@
       wrap.style.paddingTop = '0px';
       wrap.style.paddingBottom = '0px';
     } else {
-      const topBand = cfg.twoPlayer ? 64 : 8;
+      const topBand = cfg.twoPlayer ? 70 : 8;
       cw = Math.max(200, Math.min(iw - 16, (ih - topBand - 124) * (480 / 800)));
+      const ch = cw * (800 / 480);
+      const avail = Math.max(0, ih - ch);
+      const pb = (cfg.twoPlayer)
+        ? Math.min(165, Math.max(118, avail - 80))
+        : Math.min(180, Math.max(118, avail - 30));
       wrap.style.alignItems = 'flex-end';
-      wrap.style.paddingTop = (cfg.twoPlayer ? 8 : 0) + 'px';
-      wrap.style.paddingBottom = '124px';
+      wrap.style.paddingTop = '0px';
+      wrap.style.paddingBottom = pb + 'px';
     }
     canvas.style.width = cw + 'px';
     canvas.style.height = (cw * (800 / 480)) + 'px';
@@ -755,12 +762,11 @@
     a1.classList.toggle('column', wideLayout);
     a2.classList.toggle('column', wideLayout);
     if (wideLayout) {
-      a1.style.top = 'auto'; a1.style.bottom = '56px'; a1.style.left = '10px'; a1.style.right = 'auto'; a1.style.transform = 'none';
-      a2.style.top = 'auto'; a2.style.bottom = '56px'; a2.style.right = '10px'; a2.style.left = 'auto'; a2.style.transform = 'none';
+      a1.style.top = 'auto'; a1.style.bottom = '110px'; a1.style.left = '10px'; a1.style.right = 'auto'; a1.style.transform = 'none';
+      a2.style.top = 'auto'; a2.style.bottom = '110px'; a2.style.right = '10px'; a2.style.left = 'auto'; a2.style.transform = 'none';
     } else {
-      a1.style.top = (rect.bottom + 8) + 'px'; a1.style.bottom = 'auto'; a1.style.left = '50%'; a1.style.right = 'auto'; a1.style.transform = 'translateX(-50%)';
-      const h2 = a2.offsetHeight || 44;
-      a2.style.top = Math.max(4, rect.top - h2 - 8) + 'px'; a2.style.bottom = 'auto'; a2.style.left = '50%'; a2.style.right = 'auto'; a2.style.transform = 'translateX(-50%)';
+      a1.style.top = 'auto'; a1.style.bottom = '62px'; a1.style.left = '50%'; a1.style.right = 'auto'; a1.style.transform = 'translateX(-50%)';
+      a2.style.top = '8px'; a2.style.bottom = 'auto'; a2.style.left = '50%'; a2.style.right = 'auto'; a2.style.transform = 'translateX(-50%)';
     }
   }
   window.addEventListener('resize', fitScreen);
@@ -1011,6 +1017,7 @@
         ball.x = p2.x + PADDLE_LEN / 2;
         ball.y = p2.y + PADDLE_T + BALL_SIZE / 2 + 2;
       }
+      if (!cfg.twoPlayer && heldServer === 'p2' && performance.now() >= aiServeAt) launchServe();
       ball.prevY = ball.y;
       ball.trail.length = 0;
       return;
