@@ -39,16 +39,14 @@
   }
   #sideL { left: 12px; }
   #sideR { right: 12px; }
-  #sideC {
+  .acts {
     position: fixed;
-    bottom: 70px;
-    left: 50%;
-    transform: translateX(-50%);
     z-index: 50;
     display: flex;
     gap: 10px;
   }
-  #sideC button {
+  .acts.column { flex-direction: column; }
+  .acts button {
     width: 52px;
     height: 52px;
     font-size: 22px;
@@ -59,8 +57,9 @@
     cursor: pointer;
     padding: 0;
   }
-  #sideC button:active { background: rgba(38, 56, 100, 0.9); }
-  #sideC button.on { background: rgba(32, 84, 54, 0.95); border-color: #7ee081; }
+  .acts button:active { background: rgba(38, 56, 100, 0.9); }
+  .acts button.on { background: rgba(32, 84, 54, 0.95); border-color: #7ee081; }
+  #sideR button.off { opacity: 0.45; }
   #sideL button, #sideR button {
     background: rgba(22, 32, 58, 0.7);
     color: #9db4e8;
@@ -71,12 +70,15 @@
     padding: 10px 18px;
     cursor: pointer;
   }
-  @media (max-width: 520px) {
+  @media (max-width: 560px) {
+    #sideL .lbl, #sideR .lbl { display: none; }
     #sideL button, #sideR button {
-      font-size: 14px;
-      padding: 7px 10px;
+      font-size: 16px;
+      padding: 8px 10px;
+      width: 42px;
+      text-align: center;
     }
-    #sideC button { width: 46px; height: 46px; font-size: 19px; }
+    .acts button { width: 44px; height: 44px; font-size: 18px; }
   }
   #sideL button:active, #sideR button:active { background: rgba(38, 56, 100, 0.9); }
   #menu {
@@ -169,16 +171,22 @@
 </head>
 <body>
 <div id="wrap"><canvas id="game" width="480" height="800"></canvas></div>
-<div id="sideL"><button id="menuBtn" type="button">&#9776; Menu</button></div>
+<div id="sideL"><button id="menuBtn" type="button" title="Menu (P / &Eacute;chap)">&#9776;<span class="lbl"> Menu</span></button></div>
 <div id="sideR">
-  <button id="musicBtn" type="button">&#9834; Musique</button>
-  <button id="fsBtn" type="button">&#9974; Plein &eacute;cran</button>
+  <button id="musicBtn" type="button" title="Musique (M)">&#9834;</button>
+  <button id="fsBtn" type="button" title="Plein &eacute;cran (F)">&#9974;<span class="lbl"> Plein &eacute;cran</span></button>
 </div>
-<div id="sideC">
-  <button id="btnBomb" type="button" title="Bombe (B)">&#128165;</button>
-  <button id="btnSplit" type="button" title="Doubler la balle (X)">&#10033;</button>
-  <button id="btnShield" type="button" title="Bouclier anti-bombe (S)">&#128737;</button>
-  <button id="btnXL" type="button" title="Raquette XL (G)">&#8596;</button>
+<div id="acts1" class="acts">
+  <button type="button" data-bomb title="Bombe (B)">&#128165;</button>
+  <button type="button" data-split title="Doubler la balle (X)">&#10033;</button>
+  <button type="button" data-shield title="Bouclier anti-bombe (S)">&#128737;</button>
+  <button type="button" data-xl title="Raquette XL (G)">&#8596;</button>
+</div>
+<div id="acts2" class="acts" style="display:none">
+  <button type="button" data-bomb title="Bombe (B)">&#128165;</button>
+  <button type="button" data-split title="Doubler la balle (X)">&#10033;</button>
+  <button type="button" data-shield2 title="Bouclier anti-bombe (K)">&#128737;</button>
+  <button type="button" data-xl2 title="Raquette XL (L)">&#8596;</button>
 </div>
 <div id="menu" class="hidden">
   <div id="panel">
@@ -216,7 +224,9 @@
       <b>Tap au centre</b> : lancer, pause, reprise, mise en jeu &nbsp;&middot;&nbsp; <b>Espace</b> : idem<br>
       <b>&uarr;</b> : mise en jeu joueur 1 &nbsp;&middot;&nbsp; <b>&darr;</b> : mise en jeu joueur 2/IA (pendant l'attente)<br>
       <b>Musique</b> : <b>M</b> ou bouton &#9834; en bas &agrave; droite<br>
-      <b>Codes</b> : <b>B</b> bombe &middot; <b>S</b> bouclier anti-bombe &middot; <b>G</b> raquette XL invincible &middot; <b>X</b> balle en double (encore X = x4)&nbsp;&middot; <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>P</b>/<b>&Eacute;chap</b> : pause &nbsp;&middot;&nbsp; <b>F</b> : plein &eacute;cran
+      <b>Codes joueur 1</b> : <b>B</b> bombe &middot; <b>S</b> bouclier anti-bombe &middot; <b>G</b> raquette XL invincible &middot; <b>X</b> balle en double (encore X = x4)<br>
+      <b>Codes joueur 2</b> (mode 2 joueurs) : <b>K</b> bouclier &middot; <b>L</b> raquette XL — bombe et double partag&eacute;s<br>
+      <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>P</b>/<b>&Eacute;chap</b> : pause &nbsp;&middot;&nbsp; <b>F</b> : plein &eacute;cran
     </div>
     <div class="row">
       <button id="btnResume" type="button">&#9654; Reprendre</button>
@@ -287,8 +297,9 @@
   let wide2Until = 0;
   let shield1 = false;
   let shield2Until = 0;
-  function wide2Active() { return performance.now() < wide2Until; }
-  function shield2Active() { return performance.now() < shield2Until; }
+  let shield2On = false;
+  let wide2On = false;
+  function wide2Active() { return wide2On || performance.now() < wide2Until; }
 
   const keys = {};
   let touchX1 = null, touchX2 = null;
@@ -360,9 +371,11 @@
     } catch (e) {}
   }
   function refreshCheatButtons() {
-    document.getElementById('btnBomb').classList.toggle('on', bombArmed);
-    document.getElementById('btnXL').classList.toggle('on', wideP1);
-    document.getElementById('btnShield').classList.toggle('on', shield1);
+    document.querySelectorAll('[data-bomb]').forEach((el) => el.classList.toggle('on', bombArmed));
+    document.querySelectorAll('[data-shield]').forEach((el) => el.classList.toggle('on', shield1));
+    document.querySelectorAll('[data-shield2]').forEach((el) => el.classList.toggle('on', shield2On));
+    document.querySelectorAll('[data-xl]').forEach((el) => el.classList.toggle('on', wideP1));
+    document.querySelectorAll('[data-xl2]').forEach((el) => el.classList.toggle('on', wide2On));
   }
   let aiCheatCd = 6;
   function aiMaybeCheat() {
@@ -372,8 +385,9 @@
     aiCheatCd -= 1 / 60;
     if (aiCheatCd > 0) return;
     if (Math.random() > (cfg.ai / 100) * 0.25) return;
-    if (bombArmed && b0.vy < 0 && cfg.ai >= 40 && !shield2Active()) {
-      shield2Until = performance.now() + 8000;
+    if (bombArmed && b0.vy < 0 && cfg.ai >= 40 && !shield2On) {
+      shield2On = true;
+      refreshCheatButtons();
       aiCheatCd = 5 + Math.random() * 6;
       return;
     }
@@ -474,7 +488,7 @@
     cfg.mute = v;
     try { localStorage.setItem('pong-settings', JSON.stringify(cfg)); } catch (e) {}
     updateMusic();
-    musicBtn.textContent = v ? '\u266A coupé' : '\u266A Musique';
+    musicBtn.classList.toggle('off', v);
   }
   function toggleMute() {
     ensureAudio();
@@ -555,6 +569,8 @@
     wide2Until = 0;
     shield1 = false;
     shield2Until = 0;
+    shield2On = false;
+    wide2On = false;
     boomed.length = 0;
     placeBall(Math.random() < 0.5 ? 'p1' : 'p2');
   }
@@ -589,7 +605,9 @@
       }
     } catch (e) {}
   });
-  function fsLabel() { fsBtn.textContent = isFs() ? 'Quitter plein \u00e9cran' : '\u26F6 Plein \u00e9cran'; }
+  function fsLabel() {
+    fsBtn.innerHTML = isFs() ? '&#9974;<span class="lbl"> Quitter plein &eacute;cran</span>' : '&#9974;<span class="lbl"> Plein &eacute;cran</span>';
+  }
   ['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => {
     document.addEventListener(ev, () => { fsLabel(); fitScreen(); });
   });
@@ -600,10 +618,23 @@
   musicBtn.addEventListener('click', toggleMute);
   setMuted(cfg.mute);
 
-  document.getElementById('btnBomb').addEventListener('click', toggleBomb);
-  document.getElementById('btnSplit').addEventListener('click', splitBalls);
-  document.getElementById('btnShield').addEventListener('click', toggleShield);
-  document.getElementById('btnXL').addEventListener('click', toggleWide);
+  document.querySelectorAll('[data-bomb]').forEach((b) => b.addEventListener('click', toggleBomb));
+  document.querySelectorAll('[data-split]').forEach((b) => b.addEventListener('click', splitBalls));
+  document.querySelectorAll('[data-shield]').forEach((b) => b.addEventListener('click', toggleShield));
+  document.querySelectorAll('[data-shield2]').forEach((b) => b.addEventListener('click', toggleShield2));
+  document.querySelectorAll('[data-xl]').forEach((b) => b.addEventListener('click', toggleWide));
+  document.querySelectorAll('[data-xl2]').forEach((b) => b.addEventListener('click', toggleWide2));
+
+  function toggleShield2() {
+    if (!cfg.twoPlayer || state !== 'playing') return;
+    shield2On = !shield2On;
+    refreshCheatButtons();
+  }
+  function toggleWide2() {
+    if (!cfg.twoPlayer || state !== 'playing') return;
+    wide2On = !wide2On;
+    refreshCheatButtons();
+  }
 
   btnResume.addEventListener('click', () => { if (state === 'paused') resume(); else startGame(); });
   document.getElementById('btnRestart').addEventListener('click', startGame);
@@ -675,8 +706,8 @@
     });
     document.getElementById('aiRow').style.display = cfg.twoPlayer ? 'none' : '';
     document.getElementById('ctrlWrap').style.display = cfg.twoPlayer ? 'none' : '';
-    document.getElementById('btnXL').style.display = cfg.twoPlayer ? 'none' : '';
-    document.getElementById('btnShield').style.display = cfg.twoPlayer ? 'none' : '';
+    document.getElementById('acts2').style.display = cfg.twoPlayer ? 'flex' : 'none';
+    layoutActs();
     try { localStorage.setItem('pong-settings', JSON.stringify(cfg)); } catch (e) {}
   }
 
@@ -695,11 +726,41 @@
   });
   syncSliders();
 
+  let wideLayout = false;
   function fitScreen() {
     const iw = window.innerWidth, ih = window.innerHeight;
-    const cw = Math.max(200, Math.min(iw - 16, (ih - 90) * (480 / 800)));
+    wideLayout = iw >= (ih - 90) * (480 / 800) + 110;
+    let cw;
+    if (wideLayout) {
+      cw = Math.max(200, (ih - 90) * (480 / 800));
+      wrap.style.alignItems = 'center';
+      wrap.style.paddingTop = '0px';
+      wrap.style.paddingBottom = '0px';
+    } else {
+      const topBand = cfg.twoPlayer ? 64 : 8;
+      cw = Math.max(200, Math.min(iw - 16, (ih - topBand - 124) * (480 / 800)));
+      wrap.style.alignItems = 'flex-end';
+      wrap.style.paddingTop = (cfg.twoPlayer ? 8 : 0) + 'px';
+      wrap.style.paddingBottom = '124px';
+    }
     canvas.style.width = cw + 'px';
     canvas.style.height = (cw * (800 / 480)) + 'px';
+    layoutActs();
+  }
+  function layoutActs() {
+    const rect = canvas.getBoundingClientRect();
+    const a1 = document.getElementById('acts1');
+    const a2 = document.getElementById('acts2');
+    a1.classList.toggle('column', wideLayout);
+    a2.classList.toggle('column', wideLayout);
+    if (wideLayout) {
+      a1.style.top = 'auto'; a1.style.bottom = '56px'; a1.style.left = '10px'; a1.style.right = 'auto'; a1.style.transform = 'none';
+      a2.style.top = 'auto'; a2.style.bottom = '56px'; a2.style.right = '10px'; a2.style.left = 'auto'; a2.style.transform = 'none';
+    } else {
+      a1.style.top = (rect.bottom + 8) + 'px'; a1.style.bottom = 'auto'; a1.style.left = '50%'; a1.style.right = 'auto'; a1.style.transform = 'translateX(-50%)';
+      const h2 = a2.offsetHeight || 44;
+      a2.style.top = Math.max(4, rect.top - h2 - 8) + 'px'; a2.style.bottom = 'auto'; a2.style.left = '50%'; a2.style.right = 'auto'; a2.style.transform = 'translateX(-50%)';
+    }
   }
   window.addEventListener('resize', fitScreen);
   window.addEventListener('orientationchange', fitScreen);
@@ -721,6 +782,8 @@
     if (e.key === 'b' || e.key === 'B') toggleBomb();
     if (e.key === 's' || e.key === 'S') toggleShield();
     if (e.key === 'g' || e.key === 'G') toggleWide();
+    if (e.key === 'k' || e.key === 'K') toggleShield2();
+    if (e.key === 'l' || e.key === 'L') toggleWide2();
     if (e.key === 'x' || e.key === 'X') splitBalls();
     if (e.key === 'm' || e.key === 'M') toggleMute();
   });
@@ -750,7 +813,7 @@
     return Math.hypot(clientX - cx, clientY - cy) <= MENU_CIRCLE_R * scale;
   }
   function onSideButtons(e) {
-    return !!(e.target && e.target.closest && e.target.closest('#sideL, #sideR, #sideC'));
+    return !!(e.target && e.target.closest && e.target.closest('#sideL, #sideR, .acts'));
   }
 
   const taps = {};
@@ -816,11 +879,12 @@
       const side = topPaddle ? 'p2' : 'p1';
       bombArmed = false;
       refreshCheatButtons();
-      const shielded = (side === 'p1') ? shield1 : shield2Active();
+      const shielded = (side === 'p1') ? shield1 : shield2On;
       spawnBoom(b.x, b.y);
       if (shielded) {
-        if (side === 'p1') { shield1 = false; refreshCheatButtons(); }
-        else shield2Until = 0;
+        if (side === 'p1') shield1 = false;
+        else shield2On = false;
+        refreshCheatButtons();
         clangSound();
         b.x = Math.max(p.x + half + 0.01, Math.min(p.x + len - half - 0.01, b.x));
         b.y = topPaddle ? (p.y + PADDLE_T + half) : (p.y - half);
@@ -831,6 +895,7 @@
       destroyedPaddle = side;
       bombSkip = true;
       if (side === 'p1') wideP1 = false;
+      if (side === 'p2') { wide2On = false; wide2Until = 0; }
       onPointScored(side === 'p1' ? 'p2' : 'p1');
       return;
     }
@@ -905,7 +970,8 @@
       if (keys['ArrowLeft']) p2.x -= 8;
       if (keys['ArrowRight']) p2.x += 8;
       p2.x = Math.max(0, Math.min(W - PADDLE_LEN, p2.x));
-      p2.vx = p2.x - x2;
+      if (wide2On) { p2.x = 0; p2.vx = 0; }
+      p2.vx = wide2On ? 0 : p2.x - x2;
     } else {
       // IA : anticipe le point d'arrivee de la balle la plus proche (avec rebons sur les parois)
       // plus une erreur proportionnelle a la difficulte choisie
@@ -931,6 +997,7 @@
       if (target > center + 6) p2.x += Math.min(spd, target - center);
       else if (target < center - 6) p2.x -= Math.min(spd, center - target);
       p2.x = Math.max(0, Math.min(W - PADDLE_LEN, p2.x));
+      if (wide2Active()) { p2.x = 0; p2.vx = 0; }
       p2.vx = p2.x - x2;
     }
 
@@ -1144,6 +1211,11 @@
     } else {
       ctx.fillStyle = PADDLE_COLORS[cfg.color2];
       ctx.fillRect(wide2Active() ? 0 : p2.x, p2.y, wide2Active() ? W : PADDLE_LEN, PADDLE_T);
+      if (shield2On) {
+        ctx.strokeStyle = `rgba(110, 220, 255, ${0.45 + 0.3 * Math.sin(performance.now() / 200)})`;
+        ctx.lineWidth = 3;
+        ctx.strokeRect((wide2Active() ? 0 : p2.x) - 3, p2.y - 4, (wide2Active() ? W : PADDLE_LEN) + 6, PADDLE_T + 8);
+      }
     }
 
     if (state === 'playing' || state === 'paused') {
