@@ -41,7 +41,7 @@
   #sideR { right: 12px; }
   #sideC {
     position: fixed;
-    bottom: 12px;
+    bottom: 70px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 50;
@@ -70,6 +70,13 @@
     font-size: 18px;
     padding: 10px 18px;
     cursor: pointer;
+  }
+  @media (max-width: 520px) {
+    #sideL button, #sideR button {
+      font-size: 14px;
+      padding: 7px 10px;
+    }
+    #sideC button { width: 46px; height: 46px; font-size: 19px; }
   }
   #sideL button:active, #sideR button:active { background: rgba(38, 56, 100, 0.9); }
   #menu {
@@ -170,7 +177,8 @@
 <div id="sideC">
   <button id="btnBomb" type="button" title="Bombe (B)">&#128165;</button>
   <button id="btnSplit" type="button" title="Doubler la balle (X)">&#10033;</button>
-  <button id="btnXL" type="button" title="Raquette XL (G)">&#128737;</button>
+  <button id="btnShield" type="button" title="Bouclier anti-bombe (S)">&#128737;</button>
+  <button id="btnXL" type="button" title="Raquette XL (G)">&#128206;</button>
 </div>
 <div id="menu" class="hidden">
   <div id="panel">
@@ -208,7 +216,7 @@
       <b>Tap au centre</b> : lancer, pause, reprise, mise en jeu &nbsp;&middot;&nbsp; <b>Espace</b> : idem<br>
       <b>&uarr;</b> : mise en jeu joueur 1 &nbsp;&middot;&nbsp; <b>&darr;</b> : mise en jeu joueur 2/IA (pendant l'attente)<br>
       <b>Musique</b> : <b>M</b> ou bouton &#9834; en bas &agrave; droite<br>
-      <b>Codes</b> : <b>B</b> bombe &middot; <b>G</b> raquette XL invincible &middot; <b>X</b> balle en double (encore X = x4)&nbsp;&middot; <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>P</b>/<b>&Eacute;chap</b> : pause &nbsp;&middot;&nbsp; <b>F</b> : plein &eacute;cran
+      <b>Codes</b> : <b>B</b> bombe &middot; <b>S</b> bouclier anti-bombe &middot; <b>G</b> raquette XL invincible &middot; <b>X</b> balle en double (encore X = x4)&nbsp;&middot; <b>&#9776;</b> : ce menu &nbsp;&middot;&nbsp; <b>P</b>/<b>&Eacute;chap</b> : pause &nbsp;&middot;&nbsp; <b>F</b> : plein &eacute;cran
     </div>
     <div class="row">
       <button id="btnResume" type="button">&#9654; Reprendre</button>
@@ -277,7 +285,10 @@
   let bombSkip = false;
   let wideP1 = false;
   let wide2Until = 0;
+  let shield1 = false;
+  let shield2Until = 0;
   function wide2Active() { return performance.now() < wide2Until; }
+  function shield2Active() { return performance.now() < shield2Until; }
 
   const keys = {};
   let touchX1 = null, touchX2 = null;
@@ -326,9 +337,32 @@
     if (wideP1) { p1.x = 0; touchX1 = null; }
     refreshCheatButtons();
   }
+  function toggleShield() {
+    if (state !== 'playing') return;
+    shield1 = !shield1;
+    refreshCheatButtons();
+  }
+  function clangSound() {
+    if (!audioCtx) return;
+    try {
+      const t0 = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(880, t0);
+      o.frequency.exponentialRampToValueAtTime(440, t0 + 0.25);
+      g.gain.setValueAtTime(0.3, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start(t0);
+      o.stop(t0 + 0.3);
+    } catch (e) {}
+  }
   function refreshCheatButtons() {
     document.getElementById('btnBomb').classList.toggle('on', bombArmed);
     document.getElementById('btnXL').classList.toggle('on', wideP1);
+    document.getElementById('btnShield').classList.toggle('on', shield1);
   }
   let aiCheatCd = 6;
   function aiMaybeCheat() {
@@ -338,6 +372,11 @@
     aiCheatCd -= 1 / 60;
     if (aiCheatCd > 0) return;
     if (Math.random() > (cfg.ai / 100) * 0.25) return;
+    if (bombArmed && b0.vy < 0 && cfg.ai >= 40 && !shield2Active()) {
+      shield2Until = performance.now() + 8000;
+      aiCheatCd = 5 + Math.random() * 6;
+      return;
+    }
     const options = [];
     if (!bombArmed && b0.vy > 0) options.push('bomb', 'bomb', 'split');
     else if (balls.length < 4 && b0.vy > 0) options.push('split');
@@ -514,6 +553,8 @@
     bombSkip = false;
     wideP1 = false;
     wide2Until = 0;
+    shield1 = false;
+    shield2Until = 0;
     boomed.length = 0;
     placeBall(Math.random() < 0.5 ? 'p1' : 'p2');
   }
@@ -561,6 +602,7 @@
 
   document.getElementById('btnBomb').addEventListener('click', toggleBomb);
   document.getElementById('btnSplit').addEventListener('click', splitBalls);
+  document.getElementById('btnShield').addEventListener('click', toggleShield);
   document.getElementById('btnXL').addEventListener('click', toggleWide);
 
   btnResume.addEventListener('click', () => { if (state === 'paused') resume(); else startGame(); });
@@ -634,6 +676,7 @@
     document.getElementById('aiRow').style.display = cfg.twoPlayer ? 'none' : '';
     document.getElementById('ctrlWrap').style.display = cfg.twoPlayer ? 'none' : '';
     document.getElementById('btnXL').style.display = cfg.twoPlayer ? 'none' : '';
+    document.getElementById('btnShield').style.display = cfg.twoPlayer ? 'none' : '';
     try { localStorage.setItem('pong-settings', JSON.stringify(cfg)); } catch (e) {}
   }
 
@@ -676,6 +719,7 @@
       if (e.key === 'ArrowDown' && heldServer === 'p2') launchServe();
     }
     if (e.key === 'b' || e.key === 'B') toggleBomb();
+    if (e.key === 's' || e.key === 'S') toggleShield();
     if (e.key === 'g' || e.key === 'G') toggleWide();
     if (e.key === 'x' || e.key === 'X') splitBalls();
     if (e.key === 'm' || e.key === 'M') toggleMute();
@@ -770,11 +814,22 @@
     if (!fromFront) return;
     if (bombArmed) {
       const side = topPaddle ? 'p2' : 'p1';
+      bombArmed = false;
+      refreshCheatButtons();
+      const shielded = (side === 'p1') ? shield1 : shield2Active();
       spawnBoom(b.x, b.y);
+      if (shielded) {
+        if (side === 'p1') { shield1 = false; refreshCheatButtons(); }
+        else shield2Until = 0;
+        clangSound();
+        b.x = Math.max(p.x + half + 0.01, Math.min(p.x + len - half - 0.01, b.x));
+        b.y = topPaddle ? (p.y + PADDLE_T + half) : (p.y - half);
+        hitPaddle(p, topPaddle ? 1 : -1, b);
+        return;
+      }
       explosionSound();
       destroyedPaddle = side;
       bombSkip = true;
-      bombArmed = false;
       if (side === 'p1') wideP1 = false;
       onPointScored(side === 'p1' ? 'p2' : 'p1');
       return;
@@ -1076,6 +1131,13 @@
     } else {
       ctx.fillStyle = PADDLE_COLORS[cfg.color1];
       ctx.fillRect(wideP1 ? 0 : p1.x, p1.y, wideP1 ? W : PADDLE_LEN, PADDLE_T);
+      if (shield1) {
+        const px = wideP1 ? 0 : p1.x;
+        const pw = wideP1 ? W : PADDLE_LEN;
+        ctx.strokeStyle = `rgba(110, 220, 255, ${0.45 + 0.3 * Math.sin(performance.now() / 200)})`;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(px - 3, p1.y - 4, pw + 6, PADDLE_T + 8);
+      }
     }
     if (destroyedPaddle === 'p2') {
       drawDebris(p2);
