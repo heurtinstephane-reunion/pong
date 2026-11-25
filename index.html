@@ -39,6 +39,28 @@
   }
   #sideL { left: 12px; }
   #sideR { right: 12px; }
+  #sideC {
+    position: fixed;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    display: flex;
+    gap: 10px;
+  }
+  #sideC button {
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
+    line-height: 1;
+    background: rgba(22, 32, 58, 0.7);
+    border: 2px solid rgba(66, 82, 130, 0.9);
+    border-radius: 12px;
+    cursor: pointer;
+    padding: 0;
+  }
+  #sideC button:active { background: rgba(38, 56, 100, 0.9); }
+  #sideC button.on { background: rgba(32, 84, 54, 0.95); border-color: #7ee081; }
   #sideL button, #sideR button {
     background: rgba(22, 32, 58, 0.7);
     color: #9db4e8;
@@ -145,6 +167,11 @@
   <button id="musicBtn" type="button">&#9834; Musique</button>
   <button id="fsBtn" type="button">&#9974; Plein &eacute;cran</button>
 </div>
+<div id="sideC">
+  <button id="btnBomb" type="button" title="Bombe (B)">&#128165;</button>
+  <button id="btnSplit" type="button" title="Doubler la balle (X)">&#10033;</button>
+  <button id="btnXL" type="button" title="Raquette XL (G)">&#128737;</button>
+</div>
 <div id="menu" class="hidden">
   <div id="panel">
     <h2 id="menuTitle">R&Eacute;GLAGES</h2>
@@ -249,6 +276,8 @@
   let destroyedPaddle = null;
   let bombSkip = false;
   let wideP1 = false;
+  let wide2Until = 0;
+  function wide2Active() { return performance.now() < wide2Until; }
 
   const keys = {};
   let touchX1 = null, touchX2 = null;
@@ -289,11 +318,36 @@
   function toggleBomb() {
     if (state !== 'playing' || ballHeld) return;
     bombArmed = !bombArmed;
+    refreshCheatButtons();
   }
   function toggleWide() {
     if (state !== 'playing') return;
     wideP1 = !wideP1;
     if (wideP1) { p1.x = 0; touchX1 = null; }
+    refreshCheatButtons();
+  }
+  function refreshCheatButtons() {
+    document.getElementById('btnBomb').classList.toggle('on', bombArmed);
+    document.getElementById('btnXL').classList.toggle('on', wideP1);
+  }
+  let aiCheatCd = 6;
+  function aiMaybeCheat() {
+    if (cfg.twoPlayer || state !== 'playing' || ballHeld) return;
+    const b0 = balls[0];
+    if (!b0) return;
+    aiCheatCd -= 1 / 60;
+    if (aiCheatCd > 0) return;
+    if (Math.random() > (cfg.ai / 100) * 0.25) return;
+    const options = [];
+    if (!bombArmed && b0.vy > 0) options.push('bomb', 'bomb', 'split');
+    else if (balls.length < 4 && b0.vy > 0) options.push('split');
+    if (!options.length && cfg.ai >= 60 && !wide2Active()) options.push('wide');
+    if (!options.length) return;
+    aiCheatCd = 7 + Math.random() * 8;
+    const pick = options[Math.floor(Math.random() * options.length)];
+    if (pick === 'bomb') bombArmed = true;
+    else if (pick === 'split') splitBalls();
+    else wide2Until = performance.now() + 6000;
   }
   function splitBalls() {
     if (state !== 'playing' || ballHeld || balls.length >= 8) return;
@@ -459,6 +513,7 @@
     destroyedPaddle = null;
     bombSkip = false;
     wideP1 = false;
+    wide2Until = 0;
     boomed.length = 0;
     placeBall(Math.random() < 0.5 ? 'p1' : 'p2');
   }
@@ -503,6 +558,10 @@
   const musicBtn = document.getElementById('musicBtn');
   musicBtn.addEventListener('click', toggleMute);
   setMuted(cfg.mute);
+
+  document.getElementById('btnBomb').addEventListener('click', toggleBomb);
+  document.getElementById('btnSplit').addEventListener('click', splitBalls);
+  document.getElementById('btnXL').addEventListener('click', toggleWide);
 
   btnResume.addEventListener('click', () => { if (state === 'paused') resume(); else startGame(); });
   document.getElementById('btnRestart').addEventListener('click', startGame);
@@ -574,6 +633,7 @@
     });
     document.getElementById('aiRow').style.display = cfg.twoPlayer ? 'none' : '';
     document.getElementById('ctrlWrap').style.display = cfg.twoPlayer ? 'none' : '';
+    document.getElementById('btnXL').style.display = cfg.twoPlayer ? 'none' : '';
     try { localStorage.setItem('pong-settings', JSON.stringify(cfg)); } catch (e) {}
   }
 
@@ -646,7 +706,7 @@
     return Math.hypot(clientX - cx, clientY - cy) <= MENU_CIRCLE_R * scale;
   }
   function onSideButtons(e) {
-    return !!(e.target && e.target.closest && e.target.closest('#sideL, #sideR'));
+    return !!(e.target && e.target.closest && e.target.closest('#sideL, #sideR, #sideC'));
   }
 
   const taps = {};
@@ -701,7 +761,7 @@
 
   function collidePaddle(p, topPaddle, b) {
     if (destroyedPaddle === (topPaddle ? 'p2' : 'p1')) return;
-    const len = (!topPaddle && wideP1) ? W : PADDLE_LEN;
+    const len = topPaddle ? (wide2Active() ? W : PADDLE_LEN) : (wideP1 ? W : PADDLE_LEN);
     const half = BALL_SIZE / 2;
     if (b.x + half < p.x || b.x - half > p.x + len) return;
     if (b.y + half < p.y || b.y - half > p.y + PADDLE_T) return;
@@ -753,6 +813,7 @@
       q.x += q.vx; q.y += q.vy; q.vy += 0.08;
     }
     updateMusic();
+    aiMaybeCheat();
 
     if (state === 'goal') {
       if (performance.now() - goalStart >= GOAL_TOTAL) {
@@ -1020,7 +1081,7 @@
       drawDebris(p2);
     } else {
       ctx.fillStyle = PADDLE_COLORS[cfg.color2];
-      ctx.fillRect(p2.x, p2.y, PADDLE_LEN, PADDLE_T);
+      ctx.fillRect(wide2Active() ? 0 : p2.x, p2.y, wide2Active() ? W : PADDLE_LEN, PADDLE_T);
     }
 
     if (state === 'playing' || state === 'paused') {
